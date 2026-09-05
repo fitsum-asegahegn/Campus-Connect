@@ -147,6 +147,8 @@
   /* ================= state ================= */
   var state = {
     userId: null,
+    connected: false,     // true once a live Supabase session + first fresh load succeeded
+    connecting: false,
     tab: "feed",
     profile: null,
     feed: [],
@@ -158,9 +160,6 @@
   };
 
   /* ================= profile ================= */
-  async function loadProfile(){
-    state.profile = await DB.getMyProfile(state.userId);
-  }
   function needsProfile(){ return !state.profile || !state.profile.name; }
 
   function buildEthDaySelect(selectedDay, selectedMonth){
@@ -232,7 +231,7 @@
     };
 
     document.getElementById("pf-save").onclick = async function(){
-      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
+      if (!guardOnline()) return;
       var name = document.getElementById("pf-name").value.trim();
       var uni = document.getElementById("pf-uni").value.trim();
       var city = document.getElementById("pf-city").value.trim();
@@ -329,7 +328,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("np-cancel").onclick = closeOverlay;
     document.getElementById("np-save").onclick = async function(){
-      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
+      if (!guardOnline()) return;
       var text = document.getElementById("np-text").value.trim();
       if (!text) return;
       var ok = await DB.createPost(state.userId, text);
@@ -382,7 +381,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("bk-cancel").onclick = closeOverlay;
     document.getElementById("bk-save").onclick = async function(){
-      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
+      if (!guardOnline()) return;
       var from = document.getElementById("bk-from").value;
       var to = document.getElementById("bk-to").value;
       var note = document.getElementById("bk-note").value.trim();
@@ -401,7 +400,7 @@
   }
 
   async function toggleRsvp(id){
-    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
+    if (!guardOnline()) return;
     var joining = state.rsvps.indexOf(id) === -1;
     await DB.setRsvp(state.userId, id, joining);
     state.rsvps = await DB.getMyRsvps(state.userId);
@@ -475,7 +474,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("pw-cancel").onclick = closeOverlay;
     document.getElementById("pw-save").onclick = async function(){
-      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
+      if (!guardOnline()) return;
       var text = document.getElementById("pw-text").value.trim();
       if (!text) return;
       var anon = document.getElementById("pw-anon").checked;
@@ -489,7 +488,7 @@
   }
 
   async function prayFor(id){
-    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
+    if (!guardOnline()) return;
     if (state.prayed.indexOf(id) !== -1) return;
     await DB.prayForRequest(state.userId, id);
     state.prayers = await DB.getPrayerWall();
@@ -498,7 +497,7 @@
   }
 
   async function toggleReadDay(i){
-    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
+    if (!guardOnline()) return;
     var checking = state.readChecked.indexOf(i) === -1;
     await DB.setReadingCheck(state.userId, i, checking);
     state.readChecked = await DB.getMyReadingChecks(state.userId);
@@ -545,7 +544,7 @@
   }
 
   async function markChallengeDone(){
-    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
+    if (!guardOnline()) return;
     if (!state.profile) return;
     var wk = weekKey();
     await DB.markWeekDone(state.userId, wk);
@@ -651,37 +650,66 @@
   function updateOfflineBanner(){
     var el = document.getElementById("fw-offline-banner");
     if (!el) return;
-    if (navigator.onLine){
+    if (navigator.onLine && state.connected){
       el.classList.add("fw-hidden");
     } else {
       el.textContent = t(
-        "📴 ከመስመር ውጭ ነዎት — ከዚህ በፊት የነበረው ይዘት እየታየ ነው። አዲስ ነገር መለጠፍ ግንኙነት ሲኖር ብቻ ይሆናል።",
-        "📴 You're offline — showing previously loaded content. Posting/RSVPing needs a connection."
+        "📴 ከዚህ በፊት የነበረው ይዘት እየታየ ነው። ግንኙነት ሲኖር ራሱ በራሱ ይዘምናል።",
+        "📴 Showing previously loaded content. It'll update automatically once connected."
       );
       el.classList.remove("fw-hidden");
     }
   }
 
-  async function loadAllData(){
-    if (navigator.onLine){
-      state.feed = await DB.getFeed();                          cacheSet("feed", state.feed);
-      state.events = await DB.getEvents();                      cacheSet("events", state.events);
-      state.rsvps = await DB.getMyRsvps(state.userId);          cacheSet("rsvps", state.rsvps);
-      state.prayers = await DB.getPrayerWall();                 cacheSet("prayers", state.prayers);
-      state.prayed = await DB.getMyPrayed(state.userId);        cacheSet("prayed", state.prayed);
-      state.readChecked = await DB.getMyReadingChecks(state.userId); cacheSet("readChecked", state.readChecked);
-      state.directory = await DB.getDirectory();                cacheSet("directory", state.directory);
-      state.challengeDone = await DB.getWeekCompletions(weekKey()); cacheSet("challengeDone", state.challengeDone);
-    } else {
-      state.feed = cacheGet("feed", []);
-      state.events = cacheGet("events", []);
-      state.rsvps = cacheGet("rsvps", []);
-      state.prayers = cacheGet("prayers", []);
-      state.prayed = cacheGet("prayed", []);
-      state.readChecked = cacheGet("readChecked", []);
-      state.directory = cacheGet("directory", []);
-      state.challengeDone = cacheGet("challengeDone", []);
+  // Loads whatever we already have on this device, instantly, no network.
+  function loadFromCache(){
+    state.profile = cacheGet("profile", null);
+    state.feed = cacheGet("feed", []);
+    state.events = cacheGet("events", []);
+    state.rsvps = cacheGet("rsvps", []);
+    state.prayers = cacheGet("prayers", []);
+    state.prayed = cacheGet("prayed", []);
+    state.readChecked = cacheGet("readChecked", []);
+    state.directory = cacheGet("directory", []);
+    state.challengeDone = cacheGet("challengeDone", []);
+  }
+
+  // Pulls live data from Supabase (requires state.userId already set) and
+  // refreshes the local cache mirror.
+  async function loadFresh(){
+    state.profile = await DB.getMyProfile(state.userId);          cacheSet("profile", state.profile);
+    state.feed = await DB.getFeed();                              cacheSet("feed", state.feed);
+    state.events = await DB.getEvents();                          cacheSet("events", state.events);
+    state.rsvps = await DB.getMyRsvps(state.userId);              cacheSet("rsvps", state.rsvps);
+    state.prayers = await DB.getPrayerWall();                     cacheSet("prayers", state.prayers);
+    state.prayed = await DB.getMyPrayed(state.userId);            cacheSet("prayed", state.prayed);
+    state.readChecked = await DB.getMyReadingChecks(state.userId); cacheSet("readChecked", state.readChecked);
+    state.directory = await DB.getDirectory();                    cacheSet("directory", state.directory);
+    state.challengeDone = await DB.getWeekCompletions(weekKey()); cacheSet("challengeDone", state.challengeDone);
+  }
+
+  function withTimeout(promise, ms){
+    return new Promise(function(resolve, reject){
+      var timer = setTimeout(function(){ reject(new Error("timeout")); }, ms);
+      promise.then(
+        function(v){ clearTimeout(timer); resolve(v); },
+        function(e){ clearTimeout(timer); reject(e); }
+      );
+    });
+  }
+
+  // A write action is only safe once we actually have a live session —
+  // being "online" per the browser isn't enough if we haven't finished
+  // signing in yet (e.g. right after opening the app on a slow connection).
+  function guardOnline(){
+    if (!navigator.onLine || !state.connected || !state.userId){
+      toast(t(
+        "🔌 ገና ካገልጋዩ ጋር አልተገናኘንም — ትንሽ ቆይተው እንደገና ይሞክሩ",
+        "🔌 Not connected to the server yet — try again in a moment"
+      ));
+      return false;
     }
+    return true;
   }
 
   /* ================= notification settings sheet ================= */
@@ -756,37 +784,14 @@
 
   /* ================= boot ================= */
   async function boot(){
-    try{
-      await Auth.ensureSession();
-      state.userId = await Auth.getUserId();
-    }catch(e){
-      var msg = navigator.onLine
-        ? t(
-            "ከአገልጋዩ ጋር መገናኘት አልተቻለም። እባክዎ የ config.js ውቅርን ያረጋግጡ (Supabase URL/anon key) እና ገጹን እንደገና ይሞክሩ።",
-            "Couldn't connect to the backend. Please check your config.js Supabase URL/anon key and reload."
-          )
-        : t(
-            "ይህን መተግበሪያ ለመጀመሪያ ጊዜ ለመክፈት በይነ መረብ ግንኙነት ያስፈልጋል። እባክዎ ግንኙነት ሲኖር አንድ ጊዜ ይክፈቱት፤ ከዚያ በኋላ ያለ ግንኙነት ይሰራል።",
-            "Opening this app for the first time needs an internet connection. Please open it once while connected — after that it works offline."
-          );
-      document.getElementById("fw-main").innerHTML = '<div class="fw-empty">' + msg + '</div>';
-      return;
-    }
-
-    await loadProfile();
-    if (!state.profile) state.profile = cacheGet("profile", null);
-    else cacheSet("profile", state.profile);
-
-    await loadAllData();
-    updateOfflineBanner();
-
+    // 1) Show whatever we already have on this device RIGHT NOW, and make
+    // navigation work immediately — none of this waits on the network.
+    loadFromCache();
     applyStaticLang();
     renderUserline();
     wireTabs();
     render();
-
-    window.addEventListener("online", function(){ updateOfflineBanner(); loadAllData().then(render); });
-    window.addEventListener("offline", updateOfflineBanner);
+    updateOfflineBanner();
 
     document.getElementById("fw-lang-toggle").onclick = function(){
       LANG = LANG === "am" ? "en" : "am";
@@ -797,13 +802,54 @@
     document.getElementById("fw-edit-profile").onclick = openProfileSheet;
     document.getElementById("fw-notif-btn").onclick = openNotificationsSheet;
 
-    if (typeof Notifications !== "undefined" && Notifications.isSupported()){
-      Notifications.startWatcher(function(){ return LANG; });
-    }
+    window.addEventListener("online", function(){ tryConnect(); });
+    window.addEventListener("offline", updateOfflineBanner);
 
-    if (needsProfile()){
-      if (navigator.onLine) setTimeout(openProfileSheet, 400);
+    // 2) Connect to Supabase in the background. If this is slow, stalled,
+    // or fails, the UI above already works — this only upgrades it once
+    // (and if) a live connection succeeds.
+    tryConnect();
+    scheduleReconnectRetries();
+  }
+
+  async function tryConnect(){
+    if (state.connecting || state.connected) return;
+    state.connecting = true;
+    try{
+      await withTimeout(Auth.ensureSession(), 10000);
+      state.userId = await Auth.getUserId();
+      await withTimeout(loadFresh(), 12000);
+      state.connected = true;
+      renderUserline();
+      wireTabs();
+      render();
+      updateOfflineBanner();
+
+      if (typeof Notifications !== "undefined" && Notifications.isSupported()){
+        Notifications.startWatcher(function(){ return LANG; });
+      }
+      if (needsProfile()){
+        setTimeout(openProfileSheet, 400);
+      }
+    }catch(e){
+      state.connected = false;
+      updateOfflineBanner();
+    }finally{
+      state.connecting = false;
     }
+  }
+
+  var reconnectTimer = null;
+  function scheduleReconnectRetries(){
+    if (reconnectTimer) return;
+    reconnectTimer = setInterval(function(){
+      if (state.connected){
+        clearInterval(reconnectTimer);
+        reconnectTimer = null;
+        return;
+      }
+      if (navigator.onLine) tryConnect();
+    }, 15000);
   }
 
   boot();

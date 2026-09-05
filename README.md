@@ -173,3 +173,12 @@ on a plane and have it send once you land turns out to matter.
 **First-ever visit must be online** — anonymous sign-in itself needs one
 network round-trip to Supabase. After that first successful sign-in, the
 session is reused offline automatically.
+
+**Boot sequence, concretely:** on open, the app renders instantly from
+whatever's cached on the device (even if that's nothing yet) and the tabs
+are clickable immediately — none of that waits on the network. Connecting
+to Supabase happens in the background with a ~10 second timeout per step,
+so a slow or stalled connection can't leave the UI stuck on a loading
+message or with dead tabs. If it fails, it quietly retries every 15 seconds
+whenever `navigator.onLine` is true, and immediately on the browser's
+`online` event, until it connects — no reload needed.

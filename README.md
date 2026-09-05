@@ -12,13 +12,15 @@ using the app — not just stored on one phone.
 ```
 index.html            — app shell (head, script loading order, body markup)
 style.css              — all styling (design tokens as CSS variables at the top)
-app.js                 — rendering + UI logic (talks to DB / Auth, never Supabase directly)
+app.js                 — rendering + UI logic (talks to DB / Auth / Notifications)
 db.js                  — Supabase data-access layer (one function per feature)
 auth.js                — anonymous Supabase authentication
 config.js              — YOUR Supabase URL + anon key go here
+idb-reminders.js       — shared IndexedDB schedule (used by app.js AND sw.js)
+notifications.js       — local notification permission + scheduling
 supabase-schema.sql    — run this once in the Supabase SQL editor
 manifest.json          — PWA manifest (name, icons, colors, install behavior)
-sw.js                  — service worker (offline caching of the app shell)
+sw.js                  — service worker (offline caching + reminder wake-ups)
 icons/                 — logo + generated PWA icon sizes
 ```
 
@@ -98,12 +100,76 @@ With Supabase connected:
   (`supabaseClient.channel(...).on('postgres_changes', ...)`) — could be
   added to `db.js` so the feed/prayer wall update live without needing to
   reopen the tab. Not included yet, to keep this first pass simple.
-- **Push notifications** for the "urgent prayer request" idea from the
-  original brainstorm would need a small serverless function (Vercel
-  Functions or a Supabase Edge Function) to call the Web Push API — the
-  schema/data model here doesn't need to change to support that later.
+- **Push notifications** (a server pinging everyone at an exact time) would
+  need a small serverless function (Vercel Functions or a Supabase Edge
+  Function) to call the Web Push API — see "Local vs. push notifications"
+  below for what's already included instead.
 - **Moderation**: there's currently no way to delete/hide a feed post or
   prayer request from the app itself. For a real church deployment you'll
   probably want a simple "leaders" role — either an `is_admin` boolean on
   `profiles` checked in a few extra RLS policies, or just moderate directly
   from the Supabase Table Editor for now.
+
+## Local reminder notifications
+
+Tap the 🔔 in the header to turn on:
+- **Daily verse** reminder (8:00 AM every day)
+- **Weekly group challenge** reminder (Wednesdays 6:00 PM)
+
+RSVPing to an event also auto-schedules a one-off reminder for the evening
+before.
+
+**New files behind this:** `idb-reminders.js` (a shared IndexedDB schedule —
+used by both the page and the service worker, since service workers can't
+read `localStorage`) and `notifications.js` (permission handling +
+scheduling + the foreground check loop).
+
+**Honest scope — please read before promising this to your community:**
+this is **local** notification scheduling, not a push server. Concretely:
+
+- ✅ Reliable whenever the app is open (checks on open, then every 60
+  seconds), and whenever a notification is tapped, the service worker
+  brings the app back to the foreground.
+- ✅ Best-effort background checks via the **Periodic Background Sync**
+  API on browsers/OSes that support it — mainly Chrome/Edge on Android for
+  an *installed* PWA someone opens somewhat regularly. The browser decides
+  if/when it actually runs this; it is not guaranteed to fire at exactly
+  8:00 AM.
+- ❌ **iOS Safari does not support Periodic Background Sync at all.**
+  On iPhone, a reminder will only fire when someone actually opens the app
+  around or after the scheduled time — not while it's closed in the
+  background.
+- ❌ No server is involved, so there's no way to guarantee "everyone gets
+  notified at exactly 8:00 AM" the way a real push service would. If that
+  guarantee matters (e.g. the "Emergency Prayer Chain" idea from the
+  original brainstorm), that specifically needs a small backend sending
+  real Web Push — the data model here doesn't need to change to add that
+  later, it would just add a server-side trigger instead of relying on the
+  browser to wake itself up.
+
+## Offline support
+
+Two separate things had to work together for "works offline" to actually
+mean something, not just "doesn't show a blank white error page":
+
+1. **App shell** (`sw.js`): HTML/CSS/JS/icons/fonts are precached on first
+   visit, so the app opens instantly and works offline after that — this
+   part is solid on any browser with service worker support.
+2. **Data**: since the feed/events/prayer wall/directory now live in
+   Supabase (not `localStorage`), `app.js` mirrors the last successful load
+   of each into `localStorage` as a **read-only fallback**. When
+   `navigator.onLine` is `false`, the app loads from that mirror instead of
+   trying (and failing) to reach Supabase, and shows a banner explaining
+   you're looking at previously-loaded content.
+
+**What offline does NOT do:** posting, RSVPing, praying, reading-plan
+check-ins, and profile edits all require a live connection — they're
+blocked with a clear "you're offline" message rather than failing silently
+or getting lost. There's no offline write queue/sync-when-reconnected in
+this build. That's a reasonable v2 addition (Supabase's client doesn't do
+this for you automatically) if being able to, say, post to the feed while
+on a plane and have it send once you land turns out to matter.
+
+**First-ever visit must be online** — anonymous sign-in itself needs one
+network round-trip to Supabase. After that first successful sign-in, the
+session is reused offline automatically.

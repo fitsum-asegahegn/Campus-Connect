@@ -68,6 +68,10 @@
   .fw-userline button{
     background:none;border:none;color:#E9CE86;font-size:12px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;
   }
+  .fw-offline-banner{
+    margin-top:10px;background:rgba(122,35,49,.25);border:1px solid rgba(233,206,134,.4);
+    color:#F7E9E9;font-size:12px;padding:7px 10px;border-radius:2px;
+  }
 
   /* ---------- tabs ---------- */
   .fw-tabs{

@@ -30,12 +30,14 @@
         <p class="fw-eyebrow" data-am="ኮዬ ፋንታ ደብረ ፀሐይ · ፍኖተ ጥበብ ሰ.ት.ቤት" data-en="Koye Feche Debre Tsehay · Finote Tibeb SS">ኮዬ ፋንታ ደብረ ፀሐይ · ፍኖተ ጥበብ ሰ.ት.ቤት</p>
         <h1 class="fw-title" data-am="ግቢ ጉባኤ ትስስር" data-en="Campus Connect">ግቢ ጉባኤ ትስስር</h1>
       </div>
+      <button class="fw-langbtn" id="fw-notif-btn" title="Reminders" style="margin-right:6px;">🔔</button>
       <button class="fw-langbtn" id="fw-lang-toggle">EN</button>
     </div>
     <div class="fw-userline">
       <span id="fw-userline-text" data-am="እንኳን ደህና መጣችሁ" data-en="Welcome">እንኳን ደህና መጣችሁ</span>
       <button id="fw-edit-profile" data-am="መገለጫዬን አርትዕ" data-en="Edit my info">መገለጫዬን አርትዕ</button>
     </div>
+    <div id="fw-offline-banner" class="fw-offline-banner fw-hidden"></div>
   </div>
 
   <div class="fw-tabs" id="fw-tabs">
@@ -72,6 +74,8 @@
 <script src="config.js" defer></script>
 <script src="auth.js" defer></script>
 <script src="db.js" defer></script>
+<script src="idb-reminders.js" defer></script>
+<script src="notifications.js" defer></script>
 <script src="app.js" defer></script>
 <script>
   if ("serviceWorker" in navigator) {

@@ -232,6 +232,7 @@
     };
 
     document.getElementById("pf-save").onclick = async function(){
+      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
       var name = document.getElementById("pf-name").value.trim();
       var uni = document.getElementById("pf-uni").value.trim();
       var city = document.getElementById("pf-city").value.trim();
@@ -251,6 +252,8 @@
         return;
       }
       state.directory = await DB.getDirectory();
+      cacheSet("profile", state.profile);
+      cacheSet("directory", state.directory);
       closeOverlay();
       renderUserline();
       render();
@@ -326,6 +329,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("np-cancel").onclick = closeOverlay;
     document.getElementById("np-save").onclick = async function(){
+      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
       var text = document.getElementById("np-text").value.trim();
       if (!text) return;
       var ok = await DB.createPost(state.userId, text);
@@ -378,6 +382,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("bk-cancel").onclick = closeOverlay;
     document.getElementById("bk-save").onclick = async function(){
+      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
       var from = document.getElementById("bk-from").value;
       var to = document.getElementById("bk-to").value;
       var note = document.getElementById("bk-note").value.trim();
@@ -396,9 +401,21 @@
   }
 
   async function toggleRsvp(id){
+    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
     var joining = state.rsvps.indexOf(id) === -1;
     await DB.setRsvp(state.userId, id, joining);
     state.rsvps = await DB.getMyRsvps(state.userId);
+    if (Notifications && Notifications.isSupported() && Notifications.permission() === "granted"){
+      var ev = state.events.find(function(e){ return e.id === id; });
+      if (joining && ev){
+        Notifications.scheduleEventReminder(id, ev.date, {
+          title_am: "🔔 መርሐ ግብር ነገ አለ", title_en: "🔔 Event coming up",
+          body_am: (LANG==="am" ? ev.title_am : ev.title_am), body_en: ev.title_en
+        });
+      } else if (!joining){
+        Notifications.cancelEventReminder(id);
+      }
+    }
     render();
   }
 
@@ -458,6 +475,7 @@
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("pw-cancel").onclick = closeOverlay;
     document.getElementById("pw-save").onclick = async function(){
+      if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት — ግንኙነት ሲኖር እንደገና ይሞክሩ", "🔌 You're offline — try again once you're connected")); return; }
       var text = document.getElementById("pw-text").value.trim();
       if (!text) return;
       var anon = document.getElementById("pw-anon").checked;
@@ -471,6 +489,7 @@
   }
 
   async function prayFor(id){
+    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
     if (state.prayed.indexOf(id) !== -1) return;
     await DB.prayForRequest(state.userId, id);
     state.prayers = await DB.getPrayerWall();
@@ -479,6 +498,7 @@
   }
 
   async function toggleReadDay(i){
+    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
     var checking = state.readChecked.indexOf(i) === -1;
     await DB.setReadingCheck(state.userId, i, checking);
     state.readChecked = await DB.getMyReadingChecks(state.userId);
@@ -525,6 +545,7 @@
   }
 
   async function markChallengeDone(){
+    if (!navigator.onLine){ toast(t("🔌 ከመስመር ውጭ ነዎት", "🔌 You're offline")); return; }
     if (!state.profile) return;
     var wk = weekKey();
     await DB.markWeekDone(state.userId, wk);
@@ -611,35 +632,161 @@
     });
   }
 
+  /* ================= offline data cache (read-only fallback) ================= */
+  // Mirrors the last-successfully-loaded shared/personal data into
+  // localStorage. This is NOT the source of truth (Supabase is) — it's a
+  // fallback so opening the app with no connection shows real content
+  // instead of empty lists. Written on every successful online load, read
+  // back only when navigator.onLine is false.
+  function cacheSet(key, value){
+    try{ localStorage.setItem("cc:cache:" + key, JSON.stringify(value)); }catch(e){}
+  }
+  function cacheGet(key, fallback){
+    try{
+      var v = localStorage.getItem("cc:cache:" + key);
+      return v ? JSON.parse(v) : fallback;
+    }catch(e){ return fallback; }
+  }
+
+  function updateOfflineBanner(){
+    var el = document.getElementById("fw-offline-banner");
+    if (!el) return;
+    if (navigator.onLine){
+      el.classList.add("fw-hidden");
+    } else {
+      el.textContent = t(
+        "📴 ከመስመር ውጭ ነዎት — ከዚህ በፊት የነበረው ይዘት እየታየ ነው። አዲስ ነገር መለጠፍ ግንኙነት ሲኖር ብቻ ይሆናል።",
+        "📴 You're offline — showing previously loaded content. Posting/RSVPing needs a connection."
+      );
+      el.classList.remove("fw-hidden");
+    }
+  }
+
+  async function loadAllData(){
+    if (navigator.onLine){
+      state.feed = await DB.getFeed();                          cacheSet("feed", state.feed);
+      state.events = await DB.getEvents();                      cacheSet("events", state.events);
+      state.rsvps = await DB.getMyRsvps(state.userId);          cacheSet("rsvps", state.rsvps);
+      state.prayers = await DB.getPrayerWall();                 cacheSet("prayers", state.prayers);
+      state.prayed = await DB.getMyPrayed(state.userId);        cacheSet("prayed", state.prayed);
+      state.readChecked = await DB.getMyReadingChecks(state.userId); cacheSet("readChecked", state.readChecked);
+      state.directory = await DB.getDirectory();                cacheSet("directory", state.directory);
+      state.challengeDone = await DB.getWeekCompletions(weekKey()); cacheSet("challengeDone", state.challengeDone);
+    } else {
+      state.feed = cacheGet("feed", []);
+      state.events = cacheGet("events", []);
+      state.rsvps = cacheGet("rsvps", []);
+      state.prayers = cacheGet("prayers", []);
+      state.prayed = cacheGet("prayed", []);
+      state.readChecked = cacheGet("readChecked", []);
+      state.directory = cacheGet("directory", []);
+      state.challengeDone = cacheGet("challengeDone", []);
+    }
+  }
+
+  /* ================= notification settings sheet ================= */
+  function openNotificationsSheet(){
+    var supported = typeof Notifications !== "undefined" && Notifications.isSupported();
+    var perm = supported ? Notifications.permission() : "unsupported";
+    var html = ''
+      + '<div class="fw-overlay" id="fw-overlay"><div class="fw-sheet">'
+      + '<h3>🔔 ' + t("አስታዋሾች", "Reminders") + '</h3>';
+
+    if (!supported){
+      html += '<p class="hint">' + t("ይህ መሣሪያ/አሳሽ የማሳወቂያ ድጋፍ የለውም።", "This device/browser doesn't support notifications.") + '</p>'
+        + '<div class="fw-inline-actions"><button class="fw-btn ghost" id="nt-close">' + t("ዝጋ", "Close") + '</button></div>';
+    } else if (perm === "denied"){
+      html += '<p class="hint">' + t("ማሳወቂያ ታግዷል። ከአሳሽዎ ቅንብር ውስጥ ፍቃድ መስጠት ይኖርብዎታል።", "Notifications are blocked. You'll need to allow them from your browser's site settings.") + '</p>'
+        + '<div class="fw-inline-actions"><button class="fw-btn ghost" id="nt-close">' + t("ዝጋ", "Close") + '</button></div>';
+    } else {
+      html += '<p class="hint">' + t("በዚህ መሣሪያ ላይ የአካባቢ ማሳወቂያዎችን ያብሩ/ያጥፉ። ትክክለኛ ሰዓት ላይ መድረሱ በአሳሹ ሁኔታ ላይ የተመሰረተ ነው።", "Turn local reminders on/off for this device. Exact timing depends on your browser staying reachable — see README for details.") + '</p>'
+        + '<label class="fw-check"><input type="checkbox" id="nt-daily"> ' + t("የዕለቱ ቃል (በየቀኑ 8:00 ጠዋት)", "Daily verse (8:00 AM every day)") + '</label>'
+        + '<label class="fw-check"><input type="checkbox" id="nt-weekly"> ' + t("ሳምንታዊ የቡድን ተግባር (ረቡዕ 6:00 ምሽት)", "Weekly group challenge (Wednesdays 6:00 PM)") + '</label>'
+        + '<div class="fw-inline-actions">'
+        + '<button class="fw-btn gold" id="nt-save">' + t("አስቀምጥ", "Save") + '</button>'
+        + '<button class="fw-btn ghost" id="nt-close">' + t("ዝጋ", "Close") + '</button>'
+        + '</div>';
+    }
+    html += '</div></div>';
+    document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
+
+    var closeBtn = document.getElementById("nt-close");
+    if (closeBtn) closeBtn.onclick = closeOverlay;
+
+    if (supported && perm !== "denied"){
+      Promise.all([
+        Notifications.isEnabled("daily-verse"),
+        Notifications.isEnabled("weekly-challenge")
+      ]).then(function(res){
+        document.getElementById("nt-daily").checked = res[0];
+        document.getElementById("nt-weekly").checked = res[1];
+      });
+
+      document.getElementById("nt-save").onclick = async function(){
+        if (perm !== "granted"){
+          perm = await Notifications.requestPermission();
+          if (perm !== "granted"){
+            toast(t("ፈቃድ አልተሰጠም", "Permission not granted"));
+            closeOverlay();
+            return;
+          }
+        }
+        var wantDaily = document.getElementById("nt-daily").checked;
+        var wantWeekly = document.getElementById("nt-weekly").checked;
+
+        if (wantDaily){
+          await Notifications.enableDailyVerse(8, 0, {
+            title_am: "🙏 የዕለቱ ቃል", title_en: "🙏 Daily Verse",
+            body_am: "የዛሬውን ቃል ለማንበብ ይንኩ", body_en: "Tap to read today's verse"
+          });
+        } else { await Notifications.disableDailyVerse(); }
+
+        if (wantWeekly){
+          await Notifications.enableWeeklyChallenge(3, 18, 0, {
+            title_am: "✅ ሳምንታዊ ተግባር", title_en: "✅ Weekly challenge",
+            body_am: "የዚህን ሳምንት ተግባር ጨርሰዋል?", body_en: "Have you done this week's challenge yet?"
+          });
+        } else { await Notifications.disableWeeklyChallenge(); }
+
+        closeOverlay();
+        toast(t("ተቀምጧል!", "Saved!"));
+      };
+    }
+  }
+
   /* ================= boot ================= */
   async function boot(){
     try{
       await Auth.ensureSession();
       state.userId = await Auth.getUserId();
     }catch(e){
-      document.getElementById("fw-main").innerHTML =
-        '<div class="fw-empty">' + t(
-          "ከአገልጋዩ ጋር መገናኘት አልተቻለም። እባክዎ የ config.js ውቅርን ያረጋግጡ (Supabase URL/anon key) እና ገጹን እንደገና ይሞክሩ።",
-          "Couldn't connect to the backend. Please check your config.js Supabase URL/anon key and reload."
-        ) + '</div>';
+      var msg = navigator.onLine
+        ? t(
+            "ከአገልጋዩ ጋር መገናኘት አልተቻለም። እባክዎ የ config.js ውቅርን ያረጋግጡ (Supabase URL/anon key) እና ገጹን እንደገና ይሞክሩ።",
+            "Couldn't connect to the backend. Please check your config.js Supabase URL/anon key and reload."
+          )
+        : t(
+            "ይህን መተግበሪያ ለመጀመሪያ ጊዜ ለመክፈት በይነ መረብ ግንኙነት ያስፈልጋል። እባክዎ ግንኙነት ሲኖር አንድ ጊዜ ይክፈቱት፤ ከዚያ በኋላ ያለ ግንኙነት ይሰራል።",
+            "Opening this app for the first time needs an internet connection. Please open it once while connected — after that it works offline."
+          );
+      document.getElementById("fw-main").innerHTML = '<div class="fw-empty">' + msg + '</div>';
       return;
     }
 
     await loadProfile();
+    if (!state.profile) state.profile = cacheGet("profile", null);
+    else cacheSet("profile", state.profile);
 
-    state.feed = await DB.getFeed();
-    state.events = await DB.getEvents();
-    state.rsvps = await DB.getMyRsvps(state.userId);
-    state.prayers = await DB.getPrayerWall();
-    state.prayed = await DB.getMyPrayed(state.userId);
-    state.readChecked = await DB.getMyReadingChecks(state.userId);
-    state.directory = await DB.getDirectory();
-    state.challengeDone = await DB.getWeekCompletions(weekKey());
+    await loadAllData();
+    updateOfflineBanner();
 
     applyStaticLang();
     renderUserline();
     wireTabs();
     render();
+
+    window.addEventListener("online", function(){ updateOfflineBanner(); loadAllData().then(render); });
+    window.addEventListener("offline", updateOfflineBanner);
 
     document.getElementById("fw-lang-toggle").onclick = function(){
       LANG = LANG === "am" ? "en" : "am";
@@ -648,9 +795,14 @@
       render();
     };
     document.getElementById("fw-edit-profile").onclick = openProfileSheet;
+    document.getElementById("fw-notif-btn").onclick = openNotificationsSheet;
+
+    if (typeof Notifications !== "undefined" && Notifications.isSupported()){
+      Notifications.startWatcher(function(){ return LANG; });
+    }
 
     if (needsProfile()){
-      setTimeout(openProfileSheet, 400);
+      if (navigator.onLine) setTimeout(openProfileSheet, 400);
     }
   }
 

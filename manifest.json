@@ -1,0 +1,33 @@
+{
+  "name": "ግቢ ጉባኤ ትስስር · Campus Connect — ፍኖተ ጥበብ ሰ.ት.ቤት",
+  "short_name": "Campus Connect",
+  "description": "Keeping Fanote Tibeb Sunday School university students connected to their community — feed, events, spiritual life, small groups, and a directory.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8F3E7",
+  "theme_color": "#1F3D2B",
+  "lang": "am",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

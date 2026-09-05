@@ -7,7 +7,7 @@
 //     supabase-schema.sql is what actually controls who can read/write what)
 // ----------------------------------------------------------------------------
 
-window.SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+window.SUPABASE_URL = "https://oerjwnrbiwomxdrckcjc.supabase.co";
 window.SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
 
 (function () {

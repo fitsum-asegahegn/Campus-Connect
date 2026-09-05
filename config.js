@@ -1,4 +1,4 @@
-// config.js
+// config.js 
 // ----------------------------------------------------------------------------
 // Fill these in from: Supabase Dashboard → Project Settings → API
 //   - "Project URL"      → SUPABASE_URL

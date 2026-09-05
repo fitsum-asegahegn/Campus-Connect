@@ -7,8 +7,8 @@
 //     supabase-schema.sql is what actually controls who can read/write what)
 // ----------------------------------------------------------------------------
 
-window.SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
-window.SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+window.SUPABASE_URL = "https://oerjwnrbiwomxdrckcjc.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9lcmp3bnJiaXdvbXhkcmNrY2pjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1NzgwMTYsImV4cCI6MjEwNDE1NDAxNn0.bwQ0-9wPYqm-wbJLL2Lxg86DKmPqwZa7mC12mahyzuA";
 
 (function () {
   "use strict";

@@ -271,3 +271,61 @@ create trigger trg_profiles_updated_at
 -- Done. Nothing is seeded on purpose — post the first welcome message and
 -- events directly from the app once it's deployed and you've signed in.
 -- ============================================================================
+
+
+-- ============================================================================
+-- IMAGES FOR FEED POSTS (added later — safe to re-run this whole file;
+-- everything below uses IF NOT EXISTS / ON CONFLICT DO NOTHING, so it won't
+-- touch anything that already exists)
+-- ============================================================================
+
+alter table feed_posts add column if not exists image_path text;
+
+-- Storage bucket for post photos. Public so images can be shown via a plain
+-- URL without extra auth headers (consistent with the rest of the feed
+-- already being readable by anyone signed in — a photo isn't more exposed
+-- than the post text next to it). 5MB limit, images only.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('post-images', 'post-images', true, 5242880, array['image/jpeg','image/png','image/webp','image/gif'])
+on conflict (id) do nothing;
+
+-- Anyone can view post images (matches feed_posts being readable by anyone
+-- signed in).
+create policy "post_images_public_read"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'post-images');
+
+-- People can only upload into a folder named after their own user id
+-- (app.js uploads to "<user_id>/<filename>"), so nobody can overwrite or
+-- clutter someone else's folder.
+create policy "post_images_insert_own_folder"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'post-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- People can delete their own uploaded images (not currently used by the
+-- app — there's no "delete post" button yet — but harmless to have ready).
+create policy "post_images_delete_own"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'post-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+
+-- ============================================================================
+-- JOURNEY MAP — per-person avatar identity (added later — safe to re-run)
+-- Icon is a short key from a fixed set the app offers (e.g. "lamb","fire",
+-- "dove","star","jar","scroll","sea","moon"); color is a hex string from a
+-- fixed palette the app offers. Both are just display data — no new table
+-- needed, since journey progress itself is computed in app.js from the
+-- existing group_challenge_completions rows (each check-in = one step).
+-- ============================================================================
+
+alter table profiles add column if not exists avatar_icon text;
+alter table profiles add column if not exists avatar_color text;

@@ -110,6 +110,68 @@ With Supabase connected:
   `profiles` checked in a few extra RLS policies, or just moderate directly
   from the Supabase Table Editor for now.
 
+## Photos in the feed
+
+Feed posts can now include a photo (camera or gallery, picked via the file
+input — mobile browsers show both options automatically). Under the hood:
+
+- Images upload to a Supabase **Storage** bucket called `post-images`,
+  created by the "IMAGES FOR FEED POSTS" section at the bottom of
+  `supabase-schema.sql`. If you already ran the schema before this feature
+  existed, just **re-run the whole file again** — every statement in it is
+  safe to run more than once (`if not exists` / `on conflict do nothing`),
+  so it will only add what's missing (the bucket, its policies, and the new
+  `image_path` column on `feed_posts`) without touching existing data.
+- The bucket is public-read (so images display via a plain URL) but people
+  can only upload into a folder named after their own user id — enforced by
+  a storage policy, the same pattern as everything else in this app.
+- Limits: 5MB per photo, JPEG/PNG/WebP/GIF only — enforced both in the
+  browser (before upload) and on the bucket itself (so it's not just a
+  client-side check).
+- Posts can now be text-only, photo-only, or both.
+- Photos are fetched live from Supabase, not cached by the service worker
+  (same as all other Supabase calls) — they need a connection to load, even
+  if the rest of the app shell works offline.
+
+## The Wilderness Journey (group map)
+
+The old "weekly challenge roster" is now a shared adventure map, retelling
+Exodus as a 4-chapter, 16-waypoint journey (*Out of Egypt → To Mount Sinai →
+Through the Wilderness → To the Promised Land*). It reuses the exact same
+weekly check-in action as before — nothing new to maintain — just visualizes
+it differently:
+
+- Every "Take this step" tap = one step, still gated to once per person per
+  calendar week (enforced by the same database constraint as before).
+- The **whole caravan** (gold ring) advances together once the community's
+  combined steps cross each threshold (`STEPS_PER_WAYPOINT` in `app.js`,
+  currently 8 — tune this up or down depending on how many people are
+  actively checking in).
+- **Individuals** show as their own picked avatar, positioned along the same
+  stretch of road the caravan is on, based on their personal step count —
+  so everyone's dot clusters near wherever the group is right now, visually
+  pulling each other toward the next camp rather than racing separately.
+- Past chapters show completed (✅), the current chapter shows in full
+  detail, future chapters show locked/greyed with a 🔒 — browsable with the
+  ‹ › arrows regardless of where the group actually is.
+- **Auto-resets every Ethiopian new year** — journey math only counts
+  check-ins from the current Ethiopian year (computed with the same
+  calendar code used for birthdays), so nobody needs to press a reset
+  button; old years' history stays in the database untouched, it just stops
+  counting once Meskerem 1 arrives.
+
+**Avatars**: required at profile setup, same as gender — an icon (🐑🔥🕊️⭐🏺📜🌊🌙)
+and a color, stored on `profiles` (`avatar_icon`, `avatar_color` — added by
+the "JOURNEY MAP" section at the bottom of `supabase-schema.sql`, safe to
+re-run). Existing profiles created before this feature will show a default
+avatar until they next open "Edit my info."
+
+**Changing the story**: `CHAPTERS` near the top of `app.js` is a plain array
+of `{title_am, title_en, waypoints: [{am, en} × 4]}` — edit names/count
+freely, just keep each chapter at 4 waypoints (the map layout assumes 4
+points per chapter; changing that means also touching `CHAPTER_POINTS` and
+`buildChapterSVG`).
+
 ## Local reminder notifications
 
 Tap the 🔔 in the header to turn on:

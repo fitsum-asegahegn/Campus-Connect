@@ -23,6 +23,8 @@
       gender: row.gender,
       university: row.university || "",
       city: row.city || "",
+      avatarIcon: row.avatar_icon || null,
+      avatarColor: row.avatar_color || null,
       birthday: (row.bday_day && row.bday_month)
         ? { day: row.bday_day, month: row.bday_month, year: row.bday_year || null }
         : null
@@ -44,6 +46,8 @@
       gender: profile.gender,
       university: profile.university || "",
       city: profile.city || "",
+      avatar_icon: profile.avatarIcon || null,
+      avatar_color: profile.avatarColor || null,
       bday_day: profile.birthday ? profile.birthday.day : null,
       bday_month: profile.birthday ? profile.birthday.month : null,
       bday_year: profile.birthday ? profile.birthday.year : null
@@ -61,10 +65,29 @@
 
   /* ---------------- feed ---------------- */
 
+  function getPostImageUrl(path) {
+    if (!path) return null;
+    var { data } = sb().storage.from("post-images").getPublicUrl(path);
+    return data ? data.publicUrl : null;
+  }
+
+  async function uploadPostImage(userId, file) {
+    var extMatch = /\.([a-zA-Z0-9]+)$/.exec(file.name || "");
+    var ext = (extMatch ? extMatch[1] : "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    var path = userId + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
+    var { error } = await sb().storage.from("post-images").upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type || undefined
+    });
+    if (error) { logIfError("uploadPostImage", error); return null; }
+    return path;
+  }
+
   async function getFeed() {
     var { data, error } = await sb()
       .from("feed_posts")
-      .select("id, text, created_at, profiles(name)")
+      .select("id, text, image_path, created_at, profiles(name)")
       .order("created_at", { ascending: false })
       .limit(100);
     logIfError("getFeed", error);
@@ -73,13 +96,18 @@
         id: r.id,
         author: (r.profiles && r.profiles.name) || "—",
         text: r.text,
-        time: new Date(r.created_at).getTime()
+        time: new Date(r.created_at).getTime(),
+        imageUrl: getPostImageUrl(r.image_path)
       };
     });
   }
 
-  async function createPost(userId, text) {
-    var { error } = await sb().from("feed_posts").insert({ author_id: userId, text: text });
+  async function createPost(userId, text, imagePath) {
+    var { error } = await sb().from("feed_posts").insert({
+      author_id: userId,
+      text: text,
+      image_path: imagePath || null
+    });
     logIfError("createPost", error);
     return !error;
   }
@@ -181,21 +209,44 @@
     }
   }
 
-  /* ---------------- weekly group challenge ---------------- */
+  /* ---------------- weekly check-in / journey fuel ---------------- */
 
-  async function getWeekCompletions(weekKey) {
+  // Every row here is one "step" for the journey map. Fetches full history
+  // (not just this week) so app.js can total it up per-person and per Ethiopian
+  // year — see computeJourney() in app.js.
+  async function getAllCompletions() {
     var { data, error } = await sb()
       .from("group_challenge_completions")
-      .select("user_id, profiles(name)")
-      .eq("week_key", weekKey);
-    logIfError("getWeekCompletions", error);
-    return (data || []).map(function (r) { return (r.profiles && r.profiles.name) || "—"; });
+      .select("user_id, created_at, profiles(name, gender, avatar_icon, avatar_color)");
+    logIfError("getAllCompletions", error);
+    return (data || []).map(function (r) {
+      return {
+        userId: r.user_id,
+        name: (r.profiles && r.profiles.name) || "—",
+        gender: r.profiles && r.profiles.gender,
+        avatarIcon: r.profiles && r.profiles.avatar_icon,
+        avatarColor: r.profiles && r.profiles.avatar_color,
+        createdAt: r.created_at
+      };
+    });
+  }
+
+  async function hasCheckedInThisWeek(userId, weekKey) {
+    var { data, error } = await sb()
+      .from("group_challenge_completions")
+      .select("week_key")
+      .eq("user_id", userId)
+      .eq("week_key", weekKey)
+      .maybeSingle();
+    logIfError("hasCheckedInThisWeek", error);
+    return !!data;
   }
 
   async function markWeekDone(userId, weekKey) {
     var { error } = await sb().from("group_challenge_completions")
       .insert({ week_key: weekKey, user_id: userId });
     if (error && error.code !== "23505") logIfError("markWeekDone", error);
+    return !error || error.code === "23505";
   }
 
   window.DB = {
@@ -204,6 +255,7 @@
     getDirectory: getDirectory,
     getFeed: getFeed,
     createPost: createPost,
+    uploadPostImage: uploadPostImage,
     getEvents: getEvents,
     createEvent: createEvent,
     getMyRsvps: getMyRsvps,
@@ -214,7 +266,8 @@
     prayForRequest: prayForRequest,
     getMyReadingChecks: getMyReadingChecks,
     setReadingCheck: setReadingCheck,
-    getWeekCompletions: getWeekCompletions,
+    getAllCompletions: getAllCompletions,
+    hasCheckedInThisWeek: hasCheckedInThisWeek,
     markWeekDone: markWeekDone
   };
 })();

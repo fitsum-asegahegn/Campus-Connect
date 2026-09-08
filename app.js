@@ -144,6 +144,119 @@
     return LANG === "am" ? gt(ch.m, ch.f, ch.m) : ch.en;
   }
 
+  var AVATAR_ICONS = ["🐑","🔥","🕊️","⭐","🏺","📜","🌊","🌙"];
+  var AVATAR_COLORS = ["#A6791F","#345C41","#7A2331","#1D7A6F","#3A5A8C","#6B4A8C","#B5602E","#4A5568"];
+
+  /* ================= journey map (Exodus) ================= */
+  var CHAPTERS = [
+    { title_am: "ከግብጽ መውጣት", title_en: "Out of Egypt", waypoints: [
+      { am: "ራምሴስ", en: "Rameses" }, { am: "ሱኮት", en: "Succoth" },
+      { am: "ኤታም", en: "Etham" }, { am: "ቀይ ባህር", en: "The Red Sea" }
+    ]},
+    { title_am: "ወደ ሲና ተራራ", title_en: "To Mount Sinai", waypoints: [
+      { am: "ማራ", en: "Marah" }, { am: "ኤሊም", en: "Elim" },
+      { am: "የመና በረሃ", en: "Wilderness of Manna" }, { am: "ሲና ተራራ", en: "Mount Sinai" }
+    ]},
+    { title_am: "በምድረ በዳ", title_en: "Through the Wilderness", waypoints: [
+      { am: "ታቦት መስራት", en: "Building the Ark" }, { am: "ቁጥር መቆጠር", en: "The Census" },
+      { am: "ቃዴስ ባርኔዖ", en: "Kadesh Barnea" }, { am: "አርባ ዓመት ጉዞ", en: "Forty Years' Journey" }
+    ]},
+    { title_am: "ወደ ተስፋይቱ ምድር", title_en: "To the Promised Land", waypoints: [
+      { am: "የኤዶም ድንበር", en: "Border of Edom" }, { am: "ሆር ተራራ", en: "Mount Hor" },
+      { am: "ዮርዳኖስ ወንዝ", en: "The Jordan River" }, { am: "ኢያሪኮ", en: "Jericho" }
+    ]}
+  ];
+  var STEPS_PER_WAYPOINT = 8; // tune this: lower = faster-feeling progress
+  var TOTAL_WAYPOINTS = CHAPTERS.reduce(function(sum, c){ return sum + c.waypoints.length; }, 0);
+
+  // Turns raw check-in rows into: total steps this Ethiopian year, where the
+  // shared caravan currently is, and each person's own step count. The
+  // Ethiopian-year filter is what makes the journey auto-reset every
+  // Meskerem 1 — no admin action needed, old rows just stop counting.
+  function computeJourney(completions){
+    var ethYear = todayEthiopian().year;
+    var relevant = completions.filter(function(c){
+      try{ return gregorianToEthiopian(new Date(c.createdAt)).year === ethYear; }
+      catch(e){ return false; }
+    });
+    var totalSteps = relevant.length;
+    var byUser = {};
+    relevant.forEach(function(c){
+      if (!byUser[c.userId]){
+        byUser[c.userId] = { userId: c.userId, name: c.name, gender: c.gender, avatarIcon: c.avatarIcon || AVATAR_ICONS[0], avatarColor: c.avatarColor || AVATAR_COLORS[0], steps: 0 };
+      }
+      byUser[c.userId].steps++;
+    });
+    var people = Object.keys(byUser).map(function(k){ return byUser[k]; }).sort(function(a,b){ return a.userId < b.userId ? -1 : 1; });
+    var currentWaypointIdx = Math.min(Math.floor(totalSteps / STEPS_PER_WAYPOINT), TOTAL_WAYPOINTS - 1);
+    var arrived = totalSteps >= TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT;
+    var legFraction = arrived ? 1 : (totalSteps % STEPS_PER_WAYPOINT) / STEPS_PER_WAYPOINT;
+    return { totalSteps: totalSteps, currentWaypointIdx: currentWaypointIdx, legFraction: legFraction, arrived: arrived, people: people, ethYear: ethYear };
+  }
+
+  // Same road geometry reused for every chapter map (4 waypoints, winding).
+  var CHAPTER_POINTS = [ {x:70,y:440}, {x:300,y:330}, {x:100,y:210}, {x:260,y:80} ];
+  function lerp(a, b, f){ return a + (b - a) * f; }
+
+  function buildChapterSVG(chapterIdx, journey){
+    var chapter = CHAPTERS[chapterIdx];
+    var currentChapterIdx = Math.floor(journey.currentWaypointIdx / 4);
+    var localCurrent = journey.currentWaypointIdx % 4;
+    var status = chapterIdx < currentChapterIdx ? "done" : (chapterIdx === currentChapterIdx ? "active" : "locked");
+    var pts = CHAPTER_POINTS;
+    var pointsAttr = pts.map(function(p){ return p.x + "," + p.y; }).join(" ");
+
+    var roadColor = status === "locked" ? "#C9C2AE" : "#C9A66B";
+    var nodeFill = status === "locked" ? "#DAD4C2" : "#D9B36C";
+    var nodeStroke = status === "locked" ? "#B7AF97" : "#8A6A2E";
+    var textFill = status === "locked" ? "var(--ink-faint)" : "var(--ink)";
+
+    var svg = '<svg width="100%" viewBox="0 0 380 500" role="img">'
+      + '<title>' + escapeHtml(LANG==="am" ? chapter.title_am : chapter.title_en) + '</title>'
+      + '<polyline points="' + pointsAttr + '" fill="none" stroke="' + roadColor + '" stroke-width="4" stroke-linejoin="round"' + (status==="locked" ? ' stroke-dasharray="3 7"' : '') + '/>';
+
+    chapter.waypoints.forEach(function(wp, i){
+      var p = pts[i];
+      var isRight = p.x >= 190;
+      var label = status === "locked" ? "?" : (LANG === "am" ? wp.am : wp.en);
+      var reached = status === "done" || (status === "active" && i <= localCurrent);
+      svg += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (reached ? 11 : 9) + '" fill="' + nodeFill + '" stroke="' + nodeStroke + '" stroke-width="1.5"/>';
+      svg += '<text x="' + (isRight ? p.x - 18 : p.x + 18) + '" y="' + (p.y + 4) + '" text-anchor="' + (isRight ? "end" : "start") + '" font-size="13" fill="' + textFill + '" font-family="inherit">' + escapeHtml(label) + '</text>';
+    });
+
+    if (status === "locked"){
+      svg += '<text x="190" y="255" text-anchor="middle" font-size="28" fill="var(--ink-faint)">🔒</text>';
+    }
+
+    if (status === "done"){
+      var last = pts[3];
+      svg += '<circle cx="' + last.x + '" cy="' + last.y + '" r="17" fill="none" stroke="#B8860B" stroke-width="2.5"/>';
+      svg += '<text x="' + last.x + '" y="' + (last.y - 26) + '" text-anchor="middle" font-size="16">✅</text>';
+    }
+
+    if (status === "active"){
+      var from = pts[localCurrent];
+      var to = pts[Math.min(localCurrent + 1, 3)];
+      var f = (localCurrent < 3) ? journey.legFraction : 0;
+      var cx = lerp(from.x, to.x, f);
+      var cy = lerp(from.y, to.y, f);
+      svg += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="none" stroke="#B8860B" stroke-width="2.5"/>';
+
+      journey.people.forEach(function(person, idx){
+        var pf = (localCurrent < 3) ? ((person.steps % STEPS_PER_WAYPOINT) / STEPS_PER_WAYPOINT) : 0;
+        var jx = ((idx * 37) % 21) - 10;
+        var jy = ((idx * 53) % 17) - 8;
+        var px = lerp(from.x, to.x, pf) + jx;
+        var py = lerp(from.y, to.y, pf) + jy;
+        svg += '<circle cx="' + px + '" cy="' + py + '" r="11" fill="' + person.avatarColor + '" stroke="#FFFDF8" stroke-width="1.5"/>';
+        svg += '<text x="' + px + '" y="' + (py + 4) + '" text-anchor="middle" font-size="11">' + person.avatarIcon + '</text>';
+      });
+    }
+
+    svg += '</svg>';
+    return svg;
+  }
+
   /* ================= state ================= */
   var state = {
     userId: null,
@@ -155,7 +268,9 @@
     events: [], rsvps: [],
     prayers: [], prayed: [],
     readChecked: [],
-    challengeDone: [],
+    completions: [],
+    journeyViewChapter: null,
+    checkedInThisWeek: false,
     directory: []
   };
 
@@ -207,6 +322,19 @@
       + '      <select class="fw-input" id="pf-bmonth" style="flex:1.4;">' + buildEthMonthSelect(b.month) + '</select>'
       + '      <select class="fw-input" id="pf-byear" style="flex:1.1;">' + buildEthYearSelect(b.year) + '</select>'
       + '    </div>'
+      + '    <p class="hint" style="margin-top:6px;">' + t("🗺️ ለጉዞ ካርታው የራስዎን ምልክት ይምረጡ — ይህ ካርታው ላይ የእርስዎ አካል ይሆናል።", "🗺️ Pick your mark for the journey map — this becomes your figure on the road.") + '</p>'
+      + '    <div class="fw-avatar-grid" id="pf-avatar-icons">'
+      + AVATAR_ICONS.map(function(ic){
+          var sel = (p.avatarIcon === ic) ? " selected" : "";
+          return '<button type="button" class="fw-avatar-choice' + sel + '" data-icon="' + ic + '">' + ic + '</button>';
+        }).join("")
+      + '    </div>'
+      + '    <div class="fw-color-grid" id="pf-avatar-colors">'
+      + AVATAR_COLORS.map(function(c){
+          var sel = (p.avatarColor === c) ? " selected" : "";
+          return '<button type="button" class="fw-color-choice' + sel + '" data-color="' + c + '" style="background:' + c + '"></button>';
+        }).join("")
+      + '    </div>'
       + '    <div class="fw-inline-actions">'
       + '      <button class="fw-btn gold" id="pf-save">' + t("አስቀምጥ", "Save") + '</button>'
       + (state.profile ? '<button class="fw-btn ghost" id="pf-cancel">' + t("ተወው", "Cancel") + '</button>' : '')
@@ -223,6 +351,23 @@
     document.getElementById("pf-gender-m").onclick = function(){ chosenGender = "m"; paintGenderBtns(); };
     document.getElementById("pf-gender-f").onclick = function(){ chosenGender = "f"; paintGenderBtns(); };
 
+    var chosenIcon = p.avatarIcon || null;
+    var chosenColor = p.avatarColor || null;
+    document.querySelectorAll("#pf-avatar-icons .fw-avatar-choice").forEach(function(btn){
+      btn.onclick = function(){
+        chosenIcon = btn.getAttribute("data-icon");
+        document.querySelectorAll("#pf-avatar-icons .fw-avatar-choice").forEach(function(b){ b.classList.remove("selected"); });
+        btn.classList.add("selected");
+      };
+    });
+    document.querySelectorAll("#pf-avatar-colors .fw-color-choice").forEach(function(btn){
+      btn.onclick = function(){
+        chosenColor = btn.getAttribute("data-color");
+        document.querySelectorAll("#pf-avatar-colors .fw-color-choice").forEach(function(b){ b.classList.remove("selected"); });
+        btn.classList.add("selected");
+      };
+    });
+
     var monthSel = document.getElementById("pf-bmonth");
     monthSel.onchange = function(){
       var daySel = document.getElementById("pf-bday");
@@ -237,13 +382,14 @@
       var city = document.getElementById("pf-city").value.trim();
       if (!name){ toast(t("እባክዎ ስም ያስገቡ", "Please enter your name")); return; }
       if (!chosenGender){ toast(t("እባክዎ ወንድም ወይም እህት የሚለውን ይምረጡ", "Please select Brother or Sister")); return; }
+      if (!chosenIcon || !chosenColor){ toast(t("እባክዎ ለጉዞ ካርታው ምልክትዎን ይምረጡ", "Please pick your journey map mark")); return; }
       var bd = parseInt(document.getElementById("pf-bday").value, 10) || null;
       var bm = parseInt(document.getElementById("pf-bmonth").value, 10) || null;
       var by = parseInt(document.getElementById("pf-byear").value, 10) || null;
       var birthday = (bd && bm) ? { day: bd, month: bm, year: by } : null;
       var saveBtn = document.getElementById("pf-save");
       saveBtn.disabled = true;
-      state.profile = { name: name, university: uni, city: city, gender: chosenGender, birthday: birthday };
+      state.profile = { name: name, university: uni, city: city, gender: chosenGender, birthday: birthday, avatarIcon: chosenIcon, avatarColor: chosenColor };
       var ok = await DB.saveMyProfile(state.userId, state.profile);
       if (!ok){
         saveBtn.disabled = false;
@@ -292,7 +438,8 @@
       return '<div class="fw-card">'
         + '<div class="fw-row-top"><span class="fw-name">' + escapeHtml(p.author) + '</span>'
         + '<span class="fw-meta">' + fmtDate(new Date(p.time).toISOString()) + '</span></div>'
-        + '<p class="fw-body-text">' + escapeHtml(p.text) + '</p>'
+        + (p.text ? '<p class="fw-body-text">' + escapeHtml(p.text) + '</p>' : '')
+        + (p.imageUrl ? '<img class="fw-post-image" src="' + escapeHtml(p.imageUrl) + '" alt="" loading="lazy">' : '')
         + '</div>';
     }).join("") : '<div class="fw-empty">' + t("እስካሁን ምንም ልጥፍ የለም።", "No posts yet.") + '</div>';
 
@@ -316,24 +463,75 @@
       + '<div class="fw-fab-row"><button class="fw-btn gold" id="feed-new-btn">+ ' + t("አዲስ ልጥፍ", "New post") + '</button></div>';
   }
 
+  var pendingPostFile = null;
+
   function openNewPostSheet(){
+    pendingPostFile = null;
     var html = ''
       + '<div class="fw-overlay" id="fw-overlay"><div class="fw-sheet">'
       + '<h3>' + t("አዲስ ልጥፍ", "New post") + '</h3>'
       + '<p class="hint">' + t("ይህ ልጥፍ ለሁሉም የ ሰንበት ትምህርት ቤቱ ተማሪዎች ይታያል።", "This post will be visible to everyone in the Sunday School.") + '</p>'
       + '<textarea class="fw-input" id="np-text" placeholder="' + t("ምን ልትካፈሉን ትፈልጋላችሁ?", "What do you want to share?") + '"></textarea>'
+      + '<input type="file" accept="image/*" id="np-file" class="fw-file-input">'
+      + '<div id="np-preview-wrap"></div>'
       + '<div class="fw-inline-actions"><button class="fw-btn gold" id="np-save">' + t("ለጥፍ", "Post") + '</button>'
       + '<button class="fw-btn ghost" id="np-cancel">' + t("ተወው", "Cancel") + '</button></div>'
       + '</div></div>';
     document.getElementById("fw-root").insertAdjacentHTML("beforeend", html);
     document.getElementById("np-cancel").onclick = closeOverlay;
+
+    document.getElementById("np-file").onchange = function(e){
+      var file = e.target.files && e.target.files[0];
+      var wrap = document.getElementById("np-preview-wrap");
+      if (!file){ pendingPostFile = null; wrap.innerHTML = ""; return; }
+      if (file.size > 5 * 1024 * 1024){
+        toast(t("ፎቶው በጣም ትልቅ ነው (ከ5MB በታች ይሁን)", "That photo is too large (max 5MB)"));
+        e.target.value = "";
+        pendingPostFile = null; wrap.innerHTML = "";
+        return;
+      }
+      pendingPostFile = file;
+      var url = URL.createObjectURL(file);
+      wrap.innerHTML = '<div class="fw-preview-row">'
+        + '<img class="fw-img-preview" src="' + url + '" alt="">'
+        + '<button type="button" class="fw-btn ghost small" id="np-remove-img">✕ ' + t("አስወግድ", "Remove") + '</button>'
+        + '</div>';
+      document.getElementById("np-remove-img").onclick = function(){
+        pendingPostFile = null;
+        document.getElementById("np-file").value = "";
+        wrap.innerHTML = "";
+      };
+    };
+
     document.getElementById("np-save").onclick = async function(){
       if (!guardOnline()) return;
       var text = document.getElementById("np-text").value.trim();
-      if (!text) return;
-      var ok = await DB.createPost(state.userId, text);
-      if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
+      if (!text && !pendingPostFile){ toast(t("ጽሑፍ ወይም ፎቶ ያክሉ", "Add some text or a photo")); return; }
+
+      var saveBtn = document.getElementById("np-save");
+      saveBtn.disabled = true;
+      saveBtn.textContent = t("በመላክ ላይ…", "Posting…");
+
+      var imagePath = null;
+      if (pendingPostFile){
+        imagePath = await DB.uploadPostImage(state.userId, pendingPostFile);
+        if (!imagePath){
+          toast(t("ፎቶ መላክ አልተሳካም — እንደገና ይሞክሩ", "Photo upload failed — please try again"));
+          saveBtn.disabled = false;
+          saveBtn.textContent = t("ለጥፍ", "Post");
+          return;
+        }
+      }
+
+      var ok = await DB.createPost(state.userId, text, imagePath);
+      if (!ok){
+        toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again"));
+        saveBtn.disabled = false;
+        saveBtn.textContent = t("ለጥፍ", "Post");
+        return;
+      }
       state.feed = await DB.getFeed();
+      cacheSet("feed", state.feed);
       closeOverlay();
       render();
       toast(t("ተለጥፏል!", "Posted!"));
@@ -504,53 +702,83 @@
     render();
   }
 
-  /* ---------------- GROUP ---------------- */
+  /* ---------------- GROUP / JOURNEY ---------------- */
   function renderGroup(){
     var ch = thisWeekChallenge();
     var chText = challengeText(ch);
-    var myName = (state.profile && state.profile.name) || null;
-    var myDone = myName && state.challengeDone.indexOf(myName) !== -1;
+    var journey = computeJourney(state.completions);
+    var currentChapterIdx = Math.floor(journey.currentWaypointIdx / 4);
 
-    var roster = state.directory.length ? state.directory : [];
-    var doneCount = state.challengeDone.length;
-    var total = Math.max(roster.length, doneCount, 1);
-    var pct = Math.round((doneCount/total)*100);
+    if (state.journeyViewChapter === null){
+      state.journeyViewChapter = currentChapterIdx;
+    }
+    var viewIdx = state.journeyViewChapter;
+    var chapter = CHAPTERS[viewIdx];
+    var overallPct = Math.round((journey.totalSteps / (TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT)) * 100);
 
-    var rosterHtml = roster.length ? roster.map(function(m){
-      var done = state.challengeDone.indexOf(m.name) !== -1;
-      return '<div class="fw-roster-item"><span class="fw-dot' + (done?' done':'') + '"></span>'
-        + '<span>' + escapeHtml(m.name) + (m.name===myName ? ' <span class="fw-tag">' + tg("አንተ", "አንቺ", "እርስዎ", "you") + '</span>' : '') + '</span></div>';
-    }).join("") : '<div class="fw-empty">' + t("እስካሁን ማንም አልተመዘገበም — ከ አድራሻ ትር ገለጫዎን ይሙሉ።", "No one's registered yet — fill in your info from the Directory tab.") + '</div>';
+    var myDone = state.checkedInThisWeek;
+    var myName = state.profile && state.profile.name;
+
+    var arrivedBanner = journey.arrived
+      ? '<div class="fw-card accent-green"><p class="fw-body-text" style="margin-top:0;">🎉 ' + t("ጉዞው ተጠናቋል! ወደ ተስፋይቱ ምድር ደርሰናል — በአዲሱ ዓመት እንደገና ይጀምራል።", "The journey is complete! We've reached the Promised Land — it begins again next Ethiopian year.") + '</p></div>'
+      : '';
+
+    var rosterHtml = journey.people.length ? journey.people.map(function(p){
+      var mine = p.userId === state.userId;
+      return '<div class="fw-roster-item">'
+        + '<span class="fw-avatar-mini" style="background:' + p.avatarColor + '">' + p.avatarIcon + '</span>'
+        + '<span>' + escapeHtml(p.name) + (mine ? ' <span class="fw-tag">' + tg("አንተ", "አንቺ", "እርስዎ", "you") + '</span>' : '') + '</span>'
+        + '<span class="fw-meta" style="margin-left:auto;">' + p.steps + ' ' + t("እርምጃ", "steps") + '</span>'
+        + '</div>';
+    }).join("") : '<div class="fw-empty">' + t("ገና ማንም አልጀመረም — የመጀመሪያው ይሁኑ!", "No one's started yet — be the first!") + '</div>';
 
     return ''
-      + '<h2 class="fw-section-title">' + t("ንዑስ ቤተሰብ", "My Small Group") + '</h2>'
-      + '<p class="fw-section-sub">' + t("ትንሽ ቡድን፣ ትልቅ ግንኙነት — በየሳምንቱ አንድ ቀላል ነገር አብረን እናደርጋለን።", "Small group, real connection — one simple thing we do together each week.") + '</p>'
+      + '<h2 class="fw-section-title">' + t("የበረሃው ጉዞ", "The Wilderness Journey") + '</h2>'
+      + '<p class="fw-section-sub">' + t("ሁላችንም አንድ ላይ ወደ ተስፋይቱ ምድር እንጓዛለን — በየሳምንቱ የምናደርገው ትንሽ ነገር ጉዞውን ያስቀጥላል።", "We're all traveling to the Promised Land together — the small thing we do each week is what moves the caravan.") + '</p>'
+
+      + arrivedBanner
+
+      + '<div class="fw-progress-wrap"><div class="fw-progress-bar" style="width:' + overallPct + '%"></div></div>'
+      + '<p class="fw-meta" style="margin:0 0 14px;">' + journey.totalSteps + '/' + (TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT) + ' ' + t("እርምጃዎች · ዓ.ም " + journey.ethYear, "steps overall · year " + journey.ethYear) + '</p>'
 
       + '<div class="fw-card accent-green">'
-      + '<p class="fw-meta" style="margin:0 0 4px;">' + t("የዚህ ሳምንት ተግባር", "This week's challenge") + '</p>'
+      + '<p class="fw-meta" style="margin:0 0 4px;">' + t("የዚህ ሳምንት ተግባር", "This week's step") + '</p>'
       + '<p class="fw-body-text" style="margin-top:0;font-size:14px;">' + escapeHtml(chText) + '</p>'
       + '<div class="fw-inline-actions">'
-      + '<button class="fw-btn ' + (myDone ? 'ghost' : 'gold') + '" id="ch-done-btn" ' + (myDone || !myName ? 'disabled' : '') + '>'
-      + (myDone ? tg("✓ ጨርሰሃል", "✓ ጨርሰሻል", "✓ ጨርሰዋል", "✓ Done") : t("ጨረስኩ", "I did it"))
+      + '<button class="fw-btn ' + (myDone ? "ghost" : "gold") + '" id="ch-done-btn" ' + (myDone || !myName ? "disabled" : "") + '>'
+      + (myDone ? tg("✓ ጨርሰሃል — ጉዞው ተራምዷል", "✓ ጨርሰሻል — ጉዞው ተራምዷል", "✓ ጨርሰዋል — ጉዞው ተራምዷል", "✓ Done — the caravan moved") : t("እርምጃ ውሰድ", "Take this step"))
       + '</button>'
       + (!myName ? '<span class="fw-meta">' + t("(ስም ለማስመዝገብ አድራሻ ትር ይሂዱ)", "(add your name in Directory first)") + '</span>' : '')
       + '</div>'
       + '</div>'
 
-      + '<div class="fw-progress-wrap"><div class="fw-progress-bar" style="width:' + pct + '%"></div></div>'
-      + '<p class="fw-meta" style="margin:0 0 14px;">' + doneCount + '/' + roster.length + ' ' + t("ጨርሰዋል", "have checked in") + '</p>'
+      + '<div class="fw-chapter-nav">'
+      + '<button class="fw-btn ghost small" id="ch-prev" ' + (viewIdx <= 0 ? "disabled" : "") + '>‹</button>'
+      + '<div class="fw-chapter-title">'
+      + '<p class="fw-meta" style="margin:0;">' + t("ምዕራፍ", "Chapter") + ' ' + (viewIdx+1) + ' / ' + CHAPTERS.length + '</p>'
+      + '<p class="fw-serif" style="margin:0;font-size:15px;color:var(--green);">' + escapeHtml(LANG==="am" ? chapter.title_am : chapter.title_en) + '</p>'
+      + '</div>'
+      + '<button class="fw-btn ghost small" id="ch-next" ' + (viewIdx >= CHAPTERS.length-1 ? "disabled" : "") + '>›</button>'
+      + '</div>'
 
+      + '<div class="fw-map-wrap">' + buildChapterSVG(viewIdx, journey) + '</div>'
+
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:16px 0 8px;">' + t("የጉዞ ጓደኞች", "Fellow travelers") + '</h3>'
       + rosterHtml;
   }
 
   async function markChallengeDone(){
     if (!guardOnline()) return;
     if (!state.profile) return;
+    if (state.checkedInThisWeek) return;
     var wk = weekKey();
-    await DB.markWeekDone(state.userId, wk);
-    state.challengeDone = await DB.getWeekCompletions(wk);
+    var ok = await DB.markWeekDone(state.userId, wk);
+    if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
+    state.checkedInThisWeek = true;
+    state.completions = await DB.getAllCompletions();
+    cacheSet("completions", state.completions);
     render();
-    toast(t("በጎ ስራ! 🎉", "Nice work! 🎉"));
+    toast(t("በጎ ስራ! ጉዞው ተራምዷል 🎉", "Nice work! The caravan moved 🎉"));
   }
 
   /* ---------------- DIRECTORY ---------------- */
@@ -607,9 +835,13 @@
       row.onclick = function(){ toggleReadDay(parseInt(row.getAttribute("data-day"),10)); };
     });
 
-    // group
+    // group / journey
     var chb = document.getElementById("ch-done-btn");
     if (chb) chb.onclick = markChallengeDone;
+    var chPrev = document.getElementById("ch-prev");
+    if (chPrev) chPrev.onclick = function(){ state.journeyViewChapter = Math.max(0, state.journeyViewChapter - 1); render(); };
+    var chNext = document.getElementById("ch-next");
+    if (chNext) chNext.onclick = function(){ state.journeyViewChapter = Math.min(CHAPTERS.length - 1, state.journeyViewChapter + 1); render(); };
 
     // directory
     var ds = document.getElementById("dir-search");
@@ -671,7 +903,8 @@
     state.prayed = cacheGet("prayed", []);
     state.readChecked = cacheGet("readChecked", []);
     state.directory = cacheGet("directory", []);
-    state.challengeDone = cacheGet("challengeDone", []);
+    state.completions = cacheGet("completions", []);
+    state.checkedInThisWeek = cacheGet("checkedInThisWeek", false);
   }
 
   // Pulls live data from Supabase (requires state.userId already set) and
@@ -685,7 +918,8 @@
     state.prayed = await DB.getMyPrayed(state.userId);            cacheSet("prayed", state.prayed);
     state.readChecked = await DB.getMyReadingChecks(state.userId); cacheSet("readChecked", state.readChecked);
     state.directory = await DB.getDirectory();                    cacheSet("directory", state.directory);
-    state.challengeDone = await DB.getWeekCompletions(weekKey()); cacheSet("challengeDone", state.challengeDone);
+    state.completions = await DB.getAllCompletions();             cacheSet("completions", state.completions);
+    state.checkedInThisWeek = await DB.hasCheckedInThisWeek(state.userId, weekKey()); cacheSet("checkedInThisWeek", state.checkedInThisWeek);
   }
 
   function withTimeout(promise, ms){

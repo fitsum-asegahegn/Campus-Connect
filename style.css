@@ -127,6 +127,7 @@
   .fw-btn.ghost:hover{background:rgba(31,61,43,.06);}
   .fw-btn.gold{background:var(--gold);border-color:var(--gold-deep);color:#2A2005;}
   .fw-btn.gold:hover{background:var(--gold-deep);color:#F4EAD2;}
+  .fw-tel-link{text-decoration:none;}
   .fw-btn.wine{background:var(--wine);border-color:#5c1a26;color:#FBEAEA;}
   .fw-btn.small{padding:5px 10px;font-size:11.5px;}
   .fw-btn:disabled{opacity:.5;cursor:default;}
@@ -177,6 +178,7 @@
     width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
     font-size:13px;flex:0 0 auto;
   }
+  .fw-today-row{font-size:13px;padding:3px 0;color:var(--ink);}
 
   .fw-empty{
     text-align:center;padding:30px 10px;color:var(--ink-faint);font-size:13px;

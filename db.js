@@ -23,6 +23,7 @@
       gender: row.gender,
       university: row.university || "",
       city: row.city || "",
+      phone: row.phone || "",
       avatarIcon: row.avatar_icon || null,
       avatarColor: row.avatar_color || null,
       birthday: (row.bday_day && row.bday_month)
@@ -46,6 +47,7 @@
       gender: profile.gender,
       university: profile.university || "",
       city: profile.city || "",
+      phone: profile.phone || "",
       avatar_icon: profile.avatarIcon || null,
       avatar_color: profile.avatarColor || null,
       bday_day: profile.birthday ? profile.birthday.day : null,
@@ -209,44 +211,84 @@
     }
   }
 
-  /* ---------------- weekly check-in / journey fuel ---------------- */
+  /* ---------------- journey steps (additive per-action, per day) ---------------- */
 
-  // Every row here is one "step" for the journey map. Fetches full history
-  // (not just this week) so app.js can total it up per-person and per Ethiopian
-  // year — see computeJourney() in app.js.
-  async function getAllCompletions() {
+  // Fetches full history so app.js can total everyone's points per Ethiopian
+  // year — see computeJourney() in app.js. "points" here = reading_done +
+  // prayer_done + challenge_done + app_opens, computed once so the caller
+  // doesn't need to know the column layout.
+  async function getAllJourneyDays() {
     var { data, error } = await sb()
-      .from("group_challenge_completions")
-      .select("user_id, created_at, profiles(name, gender, avatar_icon, avatar_color)");
-    logIfError("getAllCompletions", error);
+      .from("journey_steps")
+      .select("user_id, step_date, reading_done, prayer_done, challenge_done, app_opens, profiles(name, gender, avatar_icon, avatar_color)");
+    logIfError("getAllJourneyDays", error);
     return (data || []).map(function (r) {
+      var points = (r.reading_done ? 1 : 0) + (r.prayer_done ? 1 : 0) + (r.challenge_done ? 1 : 0) + (r.app_opens || 0);
       return {
         userId: r.user_id,
         name: (r.profiles && r.profiles.name) || "—",
         gender: r.profiles && r.profiles.gender,
         avatarIcon: r.profiles && r.profiles.avatar_icon,
         avatarColor: r.profiles && r.profiles.avatar_color,
-        createdAt: r.created_at
+        stepDate: r.step_date,
+        points: points
       };
     });
   }
 
-  async function hasCheckedInThisWeek(userId, weekKey) {
+  async function getMyTodayRecord(userId, dateStr) {
     var { data, error } = await sb()
-      .from("group_challenge_completions")
-      .select("week_key")
-      .eq("user_id", userId)
-      .eq("week_key", weekKey)
+      .from("journey_steps")
+      .select("reading_done, prayer_done, challenge_done, app_opens")
+      .eq("user_id", userId).eq("step_date", dateStr)
       .maybeSingle();
-    logIfError("hasCheckedInThisWeek", error);
-    return !!data;
+    logIfError("getMyTodayRecord", error);
+    return data || { reading_done: false, prayer_done: false, challenge_done: false, app_opens: 0 };
   }
 
-  async function markWeekDone(userId, weekKey) {
-    var { error } = await sb().from("group_challenge_completions")
-      .insert({ week_key: weekKey, user_id: userId });
-    if (error && error.code !== "23505") logIfError("markWeekDone", error);
-    return !error || error.code === "23505";
+  // Sets ONE flag column true for today. Upsert only touches the column
+  // given here — it never resets the other three, whichever order someone
+  // does today's actions in.
+  async function setTodayFlag(userId, dateStr, field, value) {
+    var payload = { user_id: userId, step_date: dateStr };
+    payload[field] = value;
+    var { error } = await sb().from("journey_steps").upsert(payload);
+    logIfError("setTodayFlag:" + field, error);
+    return !error;
+  }
+
+  // Capped at 3: reads the current count first so a 4th+ open today is
+  // simply not written (rather than growing without limit).
+  async function incrementAppOpenToday(userId, dateStr) {
+    var current = await getMyTodayRecord(userId, dateStr);
+    var count = current.app_opens || 0;
+    if (count >= 3) return false;
+    var { error } = await sb().from("journey_steps").upsert({ user_id: userId, step_date: dateStr, app_opens: count + 1 });
+    logIfError("incrementAppOpenToday", error);
+    return !error;
+  }
+
+  /* ---------------- care calls (self-serve calling rotation) ---------------- */
+
+  async function getCareCallHistory() {
+    var { data, error } = await sb()
+      .from("care_calls")
+      .select("target_user_id, called_at")
+      .order("called_at", { ascending: false })
+      .limit(500);
+    logIfError("getCareCallHistory", error);
+    return (data || []).map(function (r) {
+      return { targetUserId: r.target_user_id, calledAt: r.called_at };
+    });
+  }
+
+  async function logCareCall(callerUserId, targetUserId) {
+    var { error } = await sb().from("care_calls").insert({
+      caller_user_id: callerUserId,
+      target_user_id: targetUserId
+    });
+    logIfError("logCareCall", error);
+    return !error;
   }
 
   window.DB = {
@@ -266,8 +308,11 @@
     prayForRequest: prayForRequest,
     getMyReadingChecks: getMyReadingChecks,
     setReadingCheck: setReadingCheck,
-    getAllCompletions: getAllCompletions,
-    hasCheckedInThisWeek: hasCheckedInThisWeek,
-    markWeekDone: markWeekDone
+    getAllJourneyDays: getAllJourneyDays,
+    getMyTodayRecord: getMyTodayRecord,
+    setTodayFlag: setTodayFlag,
+    incrementAppOpenToday: incrementAppOpenToday,
+    getCareCallHistory: getCareCallHistory,
+    logCareCall: logCareCall
   };
 })();

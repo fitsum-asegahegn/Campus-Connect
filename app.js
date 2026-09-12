@@ -134,6 +134,14 @@
     var week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay()+1)/7);
     return d.getFullYear() + "-W" + week;
   }
+  // Local calendar date as "YYYY-MM-DD" — this is the unit the daily
+  // journey-step cap is keyed on (see journey_steps in supabase-schema.sql).
+  function todayDateStr(){
+    var d = new Date();
+    var mm = String(d.getMonth()+1).padStart(2,"0");
+    var dd = String(d.getDate()).padStart(2,"0");
+    return d.getFullYear() + "-" + mm + "-" + dd;
+  }
   function thisWeekChallenge(){
     var d = new Date();
     var onejan = new Date(d.getFullYear(),0,1);
@@ -173,19 +181,19 @@
   // shared caravan currently is, and each person's own step count. The
   // Ethiopian-year filter is what makes the journey auto-reset every
   // Meskerem 1 — no admin action needed, old rows just stop counting.
-  function computeJourney(completions){
+  function computeJourney(days){
     var ethYear = todayEthiopian().year;
-    var relevant = completions.filter(function(c){
-      try{ return gregorianToEthiopian(new Date(c.createdAt)).year === ethYear; }
+    var relevant = days.filter(function(d){
+      try{ return gregorianToEthiopian(new Date(d.stepDate)).year === ethYear; }
       catch(e){ return false; }
     });
-    var totalSteps = relevant.length;
+    var totalSteps = relevant.reduce(function(sum,d){ return sum + d.points; }, 0);
     var byUser = {};
-    relevant.forEach(function(c){
-      if (!byUser[c.userId]){
-        byUser[c.userId] = { userId: c.userId, name: c.name, gender: c.gender, avatarIcon: c.avatarIcon || AVATAR_ICONS[0], avatarColor: c.avatarColor || AVATAR_COLORS[0], steps: 0 };
+    relevant.forEach(function(d){
+      if (!byUser[d.userId]){
+        byUser[d.userId] = { userId: d.userId, name: d.name, gender: d.gender, avatarIcon: d.avatarIcon || AVATAR_ICONS[0], avatarColor: d.avatarColor || AVATAR_COLORS[0], steps: 0 };
       }
-      byUser[c.userId].steps++;
+      byUser[d.userId].steps += d.points;
     });
     var people = Object.keys(byUser).map(function(k){ return byUser[k]; }).sort(function(a,b){ return a.userId < b.userId ? -1 : 1; });
     var currentWaypointIdx = Math.min(Math.floor(totalSteps / STEPS_PER_WAYPOINT), TOTAL_WAYPOINTS - 1);
@@ -268,10 +276,11 @@
     events: [], rsvps: [],
     prayers: [], prayed: [],
     readChecked: [],
-    completions: [],
+    journeySteps: [],
+    myToday: { reading_done:false, prayer_done:false, challenge_done:false, app_opens:0 },
     journeyViewChapter: null,
-    checkedInThisWeek: false,
-    directory: []
+    directory: [],
+    careCalls: []
   };
 
   /* ================= profile ================= */
@@ -317,6 +326,8 @@
       + '    <input class="fw-input" id="pf-name" placeholder="' + t("ሙሉ ስም", "Full name") + '" value="' + escapeHtml(p.name||"") + '">'
       + '    <input class="fw-input" id="pf-uni" placeholder="' + t("ዩኒቨርሲቲ", "University") + '" value="' + escapeHtml(p.university||"") + '">'
       + '    <input class="fw-input" id="pf-city" placeholder="' + t("ከተማ", "City") + '" value="' + escapeHtml(p.city||"") + '">'
+      + '    <input class="fw-input" id="pf-phone" type="tel" placeholder="' + t("ስልክ ቁጥር", "Phone number") + '" value="' + escapeHtml(p.phone||"") + '">'
+      + '    <p class="hint" style="margin-top:-2px;">' + t("በ አድራሻ ዝርዝር ውስጥ አይታይም — ለጓደኝነት ጥሪ ክፍል ብቻ ይታያል፣ ማንም ሰው ያንን ክፍል ሲከፍት ያያል።", "Not shown in the general Directory list — only inside the Care Calls section, visible there to any signed-in member.") + '</p>'
       + '    <div style="display:flex;gap:6px;">'
       + '      <select class="fw-input" id="pf-bday" style="flex:1;">' + buildEthDaySelect(b.day, b.month) + '</select>'
       + '      <select class="fw-input" id="pf-bmonth" style="flex:1.4;">' + buildEthMonthSelect(b.month) + '</select>'
@@ -380,8 +391,10 @@
       var name = document.getElementById("pf-name").value.trim();
       var uni = document.getElementById("pf-uni").value.trim();
       var city = document.getElementById("pf-city").value.trim();
+      var phone = document.getElementById("pf-phone").value.trim();
       if (!name){ toast(t("እባክዎ ስም ያስገቡ", "Please enter your name")); return; }
       if (!chosenGender){ toast(t("እባክዎ ወንድም ወይም እህት የሚለውን ይምረጡ", "Please select Brother or Sister")); return; }
+      if (!phone){ toast(t("እባክዎ ስልክ ቁጥር ያስገቡ", "Please enter your phone number")); return; }
       if (!chosenIcon || !chosenColor){ toast(t("እባክዎ ለጉዞ ካርታው ምልክትዎን ይምረጡ", "Please pick your journey map mark")); return; }
       var bd = parseInt(document.getElementById("pf-bday").value, 10) || null;
       var bm = parseInt(document.getElementById("pf-bmonth").value, 10) || null;
@@ -389,7 +402,7 @@
       var birthday = (bd && bm) ? { day: bd, month: bm, year: by } : null;
       var saveBtn = document.getElementById("pf-save");
       saveBtn.disabled = true;
-      state.profile = { name: name, university: uni, city: city, gender: chosenGender, birthday: birthday, avatarIcon: chosenIcon, avatarColor: chosenColor };
+      state.profile = { name: name, university: uni, city: city, phone: phone, gender: chosenGender, birthday: birthday, avatarIcon: chosenIcon, avatarColor: chosenColor };
       var ok = await DB.saveMyProfile(state.userId, state.profile);
       if (!ok){
         saveBtn.disabled = false;
@@ -685,6 +698,17 @@
     };
   }
 
+  // Refreshes both "my today record" and everyone's totals after any
+  // action that can change them. Cheap enough to just call plainly —
+  // there's no high-frequency loop calling this.
+  async function refreshJourneyData(){
+    state.myToday = await DB.getMyTodayRecord(state.userId, todayDateStr());
+    state.journeySteps = await DB.getAllJourneyDays();
+    cacheSet("myToday", state.myToday);
+    cacheSet("journeySteps", state.journeySteps);
+    if (state.tab === "group") render();
+  }
+
   async function prayFor(id){
     if (!guardOnline()) return;
     if (state.prayed.indexOf(id) !== -1) return;
@@ -692,6 +716,11 @@
     state.prayers = await DB.getPrayerWall();
     state.prayed = await DB.getMyPrayed(state.userId);
     render();
+    if (!state.myToday.prayer_done){
+      await DB.setTodayFlag(state.userId, todayDateStr(), "prayer_done", true);
+      await refreshJourneyData();
+      toast(t("🙏 +1 እርምጃ ለጉዞው!", "🙏 +1 step for the journey!"));
+    }
   }
 
   async function toggleReadDay(i){
@@ -700,13 +729,18 @@
     await DB.setReadingCheck(state.userId, i, checking);
     state.readChecked = await DB.getMyReadingChecks(state.userId);
     render();
+    if (checking && !state.myToday.reading_done){
+      await DB.setTodayFlag(state.userId, todayDateStr(), "reading_done", true);
+      await refreshJourneyData();
+      toast(t("📖 +1 እርምጃ ለጉዞው!", "📖 +1 step for the journey!"));
+    }
   }
 
   /* ---------------- GROUP / JOURNEY ---------------- */
   function renderGroup(){
     var ch = thisWeekChallenge();
     var chText = challengeText(ch);
-    var journey = computeJourney(state.completions);
+    var journey = computeJourney(state.journeySteps);
     var currentChapterIdx = Math.floor(journey.currentWaypointIdx / 4);
 
     if (state.journeyViewChapter === null){
@@ -716,7 +750,8 @@
     var chapter = CHAPTERS[viewIdx];
     var overallPct = Math.round((journey.totalSteps / (TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT)) * 100);
 
-    var myDone = state.checkedInThisWeek;
+    var myToday = state.myToday || { reading_done:false, prayer_done:false, challenge_done:false, app_opens:0 };
+    var todayPoints = (myToday.reading_done?1:0) + (myToday.prayer_done?1:0) + (myToday.challenge_done?1:0) + (myToday.app_opens||0);
     var myName = state.profile && state.profile.name;
 
     var arrivedBanner = journey.arrived
@@ -734,7 +769,7 @@
 
     return ''
       + '<h2 class="fw-section-title">' + t("የበረሃው ጉዞ", "The Wilderness Journey") + '</h2>'
-      + '<p class="fw-section-sub">' + t("ሁላችንም አንድ ላይ ወደ ተስፋይቱ ምድር እንጓዛለን — በየሳምንቱ የምናደርገው ትንሽ ነገር ጉዞውን ያስቀጥላል።", "We're all traveling to the Promised Land together — the small thing we do each week is what moves the caravan.") + '</p>'
+      + '<p class="fw-section-sub">' + t("ሁላችንም አንድ ላይ ወደ ተስፋይቱ ምድር እንጓዛለን — በየቀኑ የምናደርገው ትንሽ ነገሮች ጉዞውን ያስቀጥላሉ።", "We're all traveling to the Promised Land together — the small things we do each day move the caravan.") + '</p>'
 
       + arrivedBanner
 
@@ -742,11 +777,16 @@
       + '<p class="fw-meta" style="margin:0 0 14px;">' + journey.totalSteps + '/' + (TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT) + ' ' + t("እርምጃዎች · ዓ.ም " + journey.ethYear, "steps overall · year " + journey.ethYear) + '</p>'
 
       + '<div class="fw-card accent-green">'
-      + '<p class="fw-meta" style="margin:0 0 4px;">' + t("የዚህ ሳምንት ተግባር", "This week's step") + '</p>'
-      + '<p class="fw-body-text" style="margin-top:0;font-size:14px;">' + escapeHtml(chText) + '</p>'
+      + '<p class="fw-meta" style="margin:0 0 8px;">' + t("የዛሬ እርምጃዎችዎ", "Your steps today") + ' — ' + todayPoints + ' ' + t("ነጥብ", "pts") + '</p>'
+      + '<div class="fw-today-row"><span>' + (myToday.reading_done ? "✅" : "⬜") + ' ' + t("የንባብ እቅድ ቀን ምልክት ማድረግ", "Check off a reading-plan day") + '</span></div>'
+      + '<div class="fw-today-row"><span>' + (myToday.prayer_done ? "✅" : "⬜") + ' ' + t("ለአንድ ሰው መጸለይ", "Pray for someone") + '</span></div>'
+      + '<div class="fw-today-row"><span>' + (myToday.challenge_done ? "✅" : "⬜") + ' ' + t("የሳምንቱ ተግባር", "This week's challenge") + '</span></div>'
+      + '<div class="fw-today-row"><span>📱 ' + t("የመተግበሪያ መክፈቻ", "App opens today") + ': ' + (myToday.app_opens||0) + '/3</span></div>'
+      + '<div class="fw-divider" style="margin:10px 0;"></div>'
+      + '<p class="fw-body-text" style="margin-top:0;font-size:14px;"><strong>' + t("የዚህ ሳምንት ተግባር", "This week's challenge") + ':</strong> ' + escapeHtml(chText) + '</p>'
       + '<div class="fw-inline-actions">'
-      + '<button class="fw-btn ' + (myDone ? "ghost" : "gold") + '" id="ch-done-btn" ' + (myDone || !myName ? "disabled" : "") + '>'
-      + (myDone ? tg("✓ ጨርሰሃል — ጉዞው ተራምዷል", "✓ ጨርሰሻል — ጉዞው ተራምዷል", "✓ ጨርሰዋል — ጉዞው ተራምዷል", "✓ Done — the caravan moved") : t("እርምጃ ውሰድ", "Take this step"))
+      + '<button class="fw-btn ' + (myToday.challenge_done ? "ghost" : "gold") + '" id="ch-done-btn" ' + (myToday.challenge_done || !myName ? "disabled" : "") + '>'
+      + (myToday.challenge_done ? t("✓ ተጠናቋል", "✓ Done") : t("ይህን ፈጽም", "Do this"))
       + '</button>'
       + (!myName ? '<span class="fw-meta">' + t("(ስም ለማስመዝገብ አድራሻ ትር ይሂዱ)", "(add your name in Directory first)") + '</span>' : '')
       + '</div>'
@@ -770,18 +810,86 @@
   async function markChallengeDone(){
     if (!guardOnline()) return;
     if (!state.profile) return;
-    if (state.checkedInThisWeek) return;
-    var wk = weekKey();
-    var ok = await DB.markWeekDone(state.userId, wk);
+    if (state.myToday.challenge_done){ toast(t("ይህን ዛሬ አድርገውታል 🙏", "You've already done this today 🙏")); return; }
+    var ok = await DB.setTodayFlag(state.userId, todayDateStr(), "challenge_done", true);
     if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
-    state.checkedInThisWeek = true;
-    state.completions = await DB.getAllCompletions();
-    cacheSet("completions", state.completions);
-    render();
-    toast(t("በጎ ስራ! ጉዞው ተራምዷል 🎉", "Nice work! The caravan moved 🎉"));
+    state.myToday.challenge_done = true;
+    await refreshJourneyData();
+    toast(t("✅ +1 እርምጃ! ጉዞው ተራምዷል 🎉", "✅ +1 step! The caravan moved 🎉"));
   }
 
   /* ---------------- DIRECTORY ---------------- */
+  /* ---------------- CARE CALLS (self-serve calling rotation) ---------------- */
+  var CARE_CALL_MIN_GAP_DAYS = 3;   // don't re-suggest someone this soon after a call
+  var CARE_CALL_SUGGEST_COUNT = 3;  // how many names to show at once
+
+  // Same suggestions for everyone who opens the app (based on shared call
+  // history) — whoever's around picks one up. That's what spreads ~30-40
+  // people's worth of check-ins across the community instead of it being
+  // one person's job, without needing a formal assignment/role system.
+  function computeCareCallSuggestions(){
+    var lastCalled = {};
+    state.careCalls.forEach(function(c){
+      var t = new Date(c.calledAt).getTime();
+      if (!lastCalled[c.targetUserId] || t > lastCalled[c.targetUserId]) lastCalled[c.targetUserId] = t;
+    });
+    var now = Date.now();
+    var candidates = state.directory.filter(function(d){
+      if (d.id === state.userId) return false;
+      if (!d.phone) return false;
+      var last = lastCalled[d.id];
+      if (!last) return true;
+      return (now - last) / 86400000 >= CARE_CALL_MIN_GAP_DAYS;
+    });
+    candidates.sort(function(a,b){
+      return (lastCalled[a.id] || 0) - (lastCalled[b.id] || 0);
+    });
+    return candidates.slice(0, CARE_CALL_SUGGEST_COUNT).map(function(d){
+      var last = lastCalled[d.id];
+      return {
+        id: d.id, name: d.name, phone: d.phone,
+        avatarIcon: d.avatarIcon || AVATAR_ICONS[0], avatarColor: d.avatarColor || AVATAR_COLORS[0],
+        daysSince: last ? Math.floor((now - last) / 86400000) : null
+      };
+    });
+  }
+
+  function renderCareCallsSection(){
+    var suggestions = computeCareCallSuggestions();
+    if (!suggestions.length) return "";
+    var items = suggestions.map(function(p){
+      var telHref = "tel:" + p.phone.replace(/\s+/g, "");
+      var sinceText = (p.daysSince === null)
+        ? t("ገና አልተደወለላቸውም", "never called")
+        : t(p.daysSince + " ቀናት በፊት ተደውሏል", p.daysSince + " days since last call");
+      return '<div class="fw-card accent-wine">'
+        + '<div class="fw-row-top">'
+        + '<span class="fw-name"><span class="fw-avatar-mini" style="background:' + p.avatarColor + ';margin-right:6px;">' + p.avatarIcon + '</span>' + escapeHtml(p.name) + '</span>'
+        + '<span class="fw-meta">' + sinceText + '</span>'
+        + '</div>'
+        + '<div class="fw-inline-actions">'
+        + '<a class="fw-btn gold fw-tel-link" href="' + telHref + '">📞 ' + escapeHtml(p.phone) + '</a>'
+        + '<button class="fw-btn ghost small" data-logcall="' + p.id + '">✓ ' + t("ደወልኩ", "I called") + '</button>'
+        + '</div>'
+        + '</div>';
+    }).join("");
+
+    return '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 4px;">🤙 ' + t("ዛሬ ለማን ልንደውል እንችላለን?", "Who could we check on today?") + '</h3>'
+      + '<p class="fw-meta" style="margin:0 0 10px;">' + t("ማንኛችንም መደወል እንችላለን — ግዴታ አይደለም። ለረጅም ጊዜ ያልተደወለላቸው መጀመሪያ ይታያሉ።", "Any of us can make these calls — no obligation. Whoever's gone longest without hearing from us shows first.") + '</p>'
+      + items
+      + '<div class="fw-divider"></div>';
+  }
+
+  async function logCareCall(targetUserId){
+    if (!guardOnline()) return;
+    var ok = await DB.logCareCall(state.userId, targetUserId);
+    if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
+    state.careCalls = await DB.getCareCallHistory();
+    cacheSet("careCalls", state.careCalls);
+    render();
+    toast(t("🙏 አመሰግናለሁ! ተመዝግቧል።", "🙏 Thank you! Logged."));
+  }
+
   var dirFilter = "";
   function renderDirectory(){
     var myUni = state.profile && state.profile.university;
@@ -805,6 +913,7 @@
 
     return ''
       + '<h2 class="fw-section-title">' + t("አድራሻ", "Directory") + '</h2>'
+      + renderCareCallsSection()
       + '<p class="fw-section-sub">' + tg("በዩኒቨርሲቲህ ወይም ከተማህ ያሉ ወንድሞችና እህቶች ፈልግ።", "በዩኒቨርሲቲሽ ወይም ከተማሽ ያሉ ወንድሞችና እህቶች ፈልጊ።", "በዩኒቨርሲቲዎ ወይም ከተማዎ ያሉ ወንድሞችና እህቶች ይፈልጉ።", "Find brothers and sisters at your university or in your city.") + '</p>'
       + '<input class="fw-input" id="dir-search" placeholder="' + t("ፈልግ… ስም፣ ዩኒቨርሲቲ ወይም ከተማ", "Search name, university, or city") + '" value="' + escapeHtml(dirFilter) + '">'
       + '<p class="fw-meta" style="margin:0 0 10px;">' + t("ይህ ዝርዝር ገለጫቸውን ለሞሉ ተማሪዎች ብቻ ይታያል።", "This list only shows students who've filled in their info.") + '</p>'
@@ -850,6 +959,9 @@
     },0); };
     var dam = document.getElementById("dir-add-me-btn");
     if (dam) dam.onclick = openProfileSheet;
+    document.querySelectorAll("[data-logcall]").forEach(function(btn){
+      btn.onclick = function(){ logCareCall(btn.getAttribute("data-logcall")); };
+    });
   }
 
   function wireTabs(){
@@ -903,8 +1015,9 @@
     state.prayed = cacheGet("prayed", []);
     state.readChecked = cacheGet("readChecked", []);
     state.directory = cacheGet("directory", []);
-    state.completions = cacheGet("completions", []);
-    state.checkedInThisWeek = cacheGet("checkedInThisWeek", false);
+    state.journeySteps = cacheGet("journeySteps", []);
+    state.myToday = cacheGet("myToday", { reading_done:false, prayer_done:false, challenge_done:false, app_opens:0 });
+    state.careCalls = cacheGet("careCalls", []);
   }
 
   // Pulls live data from Supabase (requires state.userId already set) and
@@ -918,8 +1031,9 @@
     state.prayed = await DB.getMyPrayed(state.userId);            cacheSet("prayed", state.prayed);
     state.readChecked = await DB.getMyReadingChecks(state.userId); cacheSet("readChecked", state.readChecked);
     state.directory = await DB.getDirectory();                    cacheSet("directory", state.directory);
-    state.completions = await DB.getAllCompletions();             cacheSet("completions", state.completions);
-    state.checkedInThisWeek = await DB.hasCheckedInThisWeek(state.userId, weekKey()); cacheSet("checkedInThisWeek", state.checkedInThisWeek);
+    state.journeySteps = await DB.getAllJourneyDays();             cacheSet("journeySteps", state.journeySteps);
+    state.myToday = await DB.getMyTodayRecord(state.userId, todayDateStr()); cacheSet("myToday", state.myToday);
+    state.careCalls = await DB.getCareCallHistory();               cacheSet("careCalls", state.careCalls);
   }
 
   function withTimeout(promise, ms){
@@ -1054,6 +1168,20 @@
       state.userId = await Auth.getUserId();
       await withTimeout(loadFresh(), 12000);
       state.connected = true;
+
+      // "Opening the app" is itself one of the ways to earn a journey
+      // point today (capped at 3/day by incrementAppOpenToday). Only for
+      // people who've already completed profile setup — a brand-new
+      // anonymous session has no profiles row yet, and journey_steps
+      // requires one (foreign key).
+      if (state.profile){
+        await DB.incrementAppOpenToday(state.userId, todayDateStr());
+        state.myToday = await DB.getMyTodayRecord(state.userId, todayDateStr());
+        state.journeySteps = await DB.getAllJourneyDays();
+        cacheSet("myToday", state.myToday);
+        cacheSet("journeySteps", state.journeySteps);
+      }
+
       renderUserline();
       wireTabs();
       render();

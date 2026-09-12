@@ -135,42 +135,102 @@ input — mobile browsers show both options automatically). Under the hood:
 
 ## The Wilderness Journey (group map)
 
-The old "weekly challenge roster" is now a shared adventure map, retelling
-Exodus as a 4-chapter, 16-waypoint journey (*Out of Egypt → To Mount Sinai →
-Through the Wilderness → To the Promised Land*). It reuses the exact same
-weekly check-in action as before — nothing new to maintain — just visualizes
-it differently:
+A shared adventure map retelling Exodus as a 4-chapter, 16-waypoint journey
+(*Out of Egypt → To Mount Sinai → Through the Wilderness → To the Promised
+Land*).
 
-- Every "Take this step" tap = one step, still gated to once per person per
-  calendar week (enforced by the same database constraint as before).
+**How points are earned, per calendar day (these ADD UP, not capped against
+each other):**
+- 📖 Checking off a reading-plan day — **+1**, once per day
+- 🙏 Praying for someone on the prayer wall — **+1**, once per day
+- ✅ Finishing that week's suggested challenge — **+1**, once per day
+- 📱 Opening the app — **+1** per open, **capped at +3/day** — a 4th+ open
+  that day earns nothing further
+
+So the realistic max in one day is **6 points** (1+1+1+3), not 3 and not
+unlimited. Each of these lives in its own column on a `journey_steps` row
+(one row per person per day — `(user_id, step_date)` is the primary key),
+so doing multiple things today sets multiple flags on the *same* row rather
+than creating duplicates, and the app-open counter is read before
+incrementing so it physically cannot go past 3 — none of this relies on the
+app behaving correctly; someone refreshing repeatedly or calling the API
+directly still hits the same ceiling.
+
 - The **whole caravan** (gold ring) advances together once the community's
-  combined steps cross each threshold (`STEPS_PER_WAYPOINT` in `app.js`,
-  currently 8 — tune this up or down depending on how many people are
-  actively checking in).
+  combined points cross each threshold (`STEPS_PER_WAYPOINT` in `app.js`,
+  currently 8 — tune up or down depending on real engagement, especially
+  now that a very active day can be worth 6 points instead of 1).
 - **Individuals** show as their own picked avatar, positioned along the same
-  stretch of road the caravan is on, based on their personal step count —
-  so everyone's dot clusters near wherever the group is right now, visually
-  pulling each other toward the next camp rather than racing separately.
+  stretch of road the caravan is on, based on their personal point total.
 - Past chapters show completed (✅), the current chapter shows in full
   detail, future chapters show locked/greyed with a 🔒 — browsable with the
   ‹ › arrows regardless of where the group actually is.
-- **Auto-resets every Ethiopian new year** — journey math only counts
-  check-ins from the current Ethiopian year (computed with the same
-  calendar code used for birthdays), so nobody needs to press a reset
-  button; old years' history stays in the database untouched, it just stops
-  counting once Meskerem 1 arrives.
+- **Auto-resets every Ethiopian new year** — journey math only counts points
+  from the current Ethiopian year (same calendar code used for birthdays),
+  so nobody needs to press a reset button.
 
 **Avatars**: required at profile setup, same as gender — an icon (🐑🔥🕊️⭐🏺📜🌊🌙)
-and a color, stored on `profiles` (`avatar_icon`, `avatar_color` — added by
-the "JOURNEY MAP" section at the bottom of `supabase-schema.sql`, safe to
-re-run). Existing profiles created before this feature will show a default
-avatar until they next open "Edit my info."
+and a color, stored on `profiles` (`avatar_icon`, `avatar_color`). Existing
+profiles created before this feature will show a default avatar until they
+next open "Edit my info."
+
+**A design tradeoff worth knowing about:** rewarding app opens (even capped
+at 3) means the number partly reflects how often someone launches the app,
+not only real engagement — someone could open it 3 times back-to-back doing
+nothing else and bank 3 points. That's what was asked for, and the cap
+keeps it bounded, but it's worth watching whether that changes the *feel*
+of the roster once real usage comes in — easy to remove later by dropping
+the `incrementAppOpenToday` call in `tryConnect()` in `app.js` if the
+app-open points end up not adding much.
 
 **Changing the story**: `CHAPTERS` near the top of `app.js` is a plain array
 of `{title_am, title_en, waypoints: [{am, en} × 4]}` — edit names/count
 freely, just keep each chapter at 4 waypoints (the map layout assumes 4
 points per chapter; changing that means also touching `CHAPTER_POINTS` and
-`buildChapterSVG`).
+`buildChapterSVG`). To add another independent point source, add a boolean
+column to `journey_steps`, a `DB.setTodayFlag(...)` call from that action's
+handler in `app.js`, and include it in `getAllJourneyDays()`'s points sum
+in `db.js`.
+
+**Migration note:** this table has been revised twice now — first from a
+weekly `group_challenge_completions` table to a one-point-per-day
+`journey_steps` table, then to this additive four-source version. Both old
+shapes are left in the database untouched for history; nothing writes to
+them anymore.
+
+## Care Calls (member check-in rotation)
+
+Ties to the ሥርዓት እና ግንኙነት ክፍል responsibility in the by-law — consulting on
+students' relationships with each other — turned into a shared, self-serve
+list rather than one person's job.
+
+**How it works:** the top of the Directory tab shows up to 3 people who've
+gone the longest without a check-in call (or have never been called),
+excluding yourself and anyone without a phone number on file. Anyone who
+opens the app can tap the phone number (opens the real dialer via a `tel:`
+link) and then mark "✓ I called" — which logs it and removes that person
+from the suggestions for at least `CARE_CALL_MIN_GAP_DAYS` (3, tunable near
+the top of `app.js`) days, so nobody gets called twice in the same week by
+different people.
+
+**Why self-serve instead of assigning specific callers:** this app has no
+leader/role system to formally assign "you call Selam today" to one
+specific person — everyone who's completed profile setup sees the exact
+same prioritized list. In practice this spreads ~30-40 people's worth of
+check-ins across however many people are actively using the app, without
+needing a schedule, a manager, or anyone feeling like it's become their
+job. If a formal rota is wanted later, that would need an `is_committee`
+role column on `profiles` (easy to add) plus a way to set it (not built —
+there's no admin panel yet, so for now that would mean flipping it directly
+in the Supabase Table Editor per person).
+
+**Phone number**: required at profile setup now, alongside gender/avatar.
+It is **not** shown in the general Directory list — only inside the Care
+Calls cards. One honest caveat: like every other profile field, it's still
+technically readable by any signed-in member through the API itself (Row
+Level Security grants `select` on the whole `profiles` row to any
+authenticated user, same as birthday/university already are) — "not shown
+in the Directory list" describes the UI, not a hard access restriction.
 
 ## Local reminder notifications
 

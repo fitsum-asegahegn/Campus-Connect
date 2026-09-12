@@ -12,7 +12,7 @@
 
 importScripts("idb-reminders.js");
 
-const CACHE_NAME = "campus-connect-v6";
+const CACHE_NAME = "campus-connect-v9";
 
 const APP_SHELL = [
   "./",

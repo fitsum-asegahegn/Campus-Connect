@@ -329,3 +329,102 @@ create policy "post_images_delete_own"
 
 alter table profiles add column if not exists avatar_icon text;
 alter table profiles add column if not exists avatar_color text;
+
+
+-- ============================================================================
+-- JOURNEY STEPS — daily journey fuel (revised)
+--
+-- Each of these can independently earn a point on a given day, and they
+-- ADD UP (unlike an earlier version of this file, which capped everyone at
+-- one point per day total):
+--   reading_done    — checked off a reading-plan day today      (0 or 1)
+--   prayer_done     — prayed for someone on the prayer wall     (0 or 1)
+--   challenge_done  — did that week's suggested challenge       (0 or 1)
+--   app_opens       — opened the app today                      (0 to 3)
+-- Max possible in one day: 1+1+1+3 = 6.
+--
+-- One row per person per day (the primary key enforces that). Each action
+-- upserts just its own column, so doing multiple things today only ever
+-- sets flags to true / increments the counter — never overwrites the
+-- others. app_opens is capped at 3 by app.js reading the current value
+-- before incrementing (a 4th+ open that day is simply not written).
+-- ============================================================================
+create table if not exists journey_steps (
+  user_id        uuid not null references profiles(id) on delete cascade,
+  step_date      date not null,
+  reading_done   boolean not null default false,
+  prayer_done    boolean not null default false,
+  challenge_done boolean not null default false,
+  app_opens      smallint not null default 0,
+  created_at     timestamptz not null default now(),
+  primary key (user_id, step_date)
+);
+
+-- Safe for anyone upgrading from the earlier one-point-per-day version of
+-- this table, which only had (user_id, step_date, created_at).
+alter table journey_steps add column if not exists reading_done boolean not null default false;
+alter table journey_steps add column if not exists prayer_done boolean not null default false;
+alter table journey_steps add column if not exists challenge_done boolean not null default false;
+alter table journey_steps add column if not exists app_opens smallint not null default 0;
+
+alter table journey_steps enable row level security;
+
+-- drop-then-create makes this section safe to re-run even after the
+-- previous version of this file already created these exact policies
+-- (plain "create policy" errors on a second run if the policy already
+-- exists — "drop policy if exists" does not).
+drop policy if exists "journey_steps_select_authenticated" on journey_steps;
+create policy "journey_steps_select_authenticated"
+  on journey_steps for select
+  to authenticated
+  using (true);
+
+drop policy if exists "journey_steps_insert_own" on journey_steps;
+create policy "journey_steps_insert_own"
+  on journey_steps for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists "journey_steps_update_own" on journey_steps;
+create policy "journey_steps_update_own"
+  on journey_steps for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+
+-- ============================================================================
+-- CARE CALLS — a self-serve "who hasn't heard from us in a while" list
+-- (ties to the ሥርዓት እና ግንኙነት ክፍል responsibility in the by-law: consulting on
+-- students' relationships with each other). Nobody is assigned a specific
+-- person to call — app.js instead shows everyone the same short,
+-- most-overdue-first list, and whoever's active that day can pick one up.
+-- That's what spreads ~30-40 people's worth of check-ins across the whole
+-- community instead of it landing on one person, without needing any
+-- admin/role system to formally assign callers (this app doesn't have one).
+-- ============================================================================
+
+alter table profiles add column if not exists phone text;
+
+create table if not exists care_calls (
+  id              uuid primary key default gen_random_uuid(),
+  target_user_id  uuid not null references profiles(id) on delete cascade,
+  caller_user_id  uuid references profiles(id) on delete set null,
+  called_at       timestamptz not null default now()
+);
+
+create index if not exists care_calls_target_idx on care_calls (target_user_id, called_at desc);
+
+alter table care_calls enable row level security;
+
+drop policy if exists "care_calls_select_authenticated" on care_calls;
+create policy "care_calls_select_authenticated"
+  on care_calls for select
+  to authenticated
+  using (true);
+
+drop policy if exists "care_calls_insert_own" on care_calls;
+create policy "care_calls_insert_own"
+  on care_calls for insert
+  to authenticated
+  with check (auth.uid() = caller_user_id);

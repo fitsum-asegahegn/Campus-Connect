@@ -273,21 +273,39 @@
   async function getCareCallHistory() {
     var { data, error } = await sb()
       .from("care_calls")
-      .select("target_user_id, called_at")
+      .select("caller_user_id, target_user_id, called_at, verified")
       .order("called_at", { ascending: false })
       .limit(500);
     logIfError("getCareCallHistory", error);
     return (data || []).map(function (r) {
-      return { targetUserId: r.target_user_id, calledAt: r.called_at };
+      return { callerUserId: r.caller_user_id, targetUserId: r.target_user_id, calledAt: r.called_at, verified: r.verified };
     });
   }
 
+  // Creates a CLAIM, not a confirmed credit — verified defaults to false.
+  // See verifyPendingCallsForMe() for how a claim actually becomes real.
   async function logCareCall(callerUserId, targetUserId) {
     var { error } = await sb().from("care_calls").insert({
       caller_user_id: callerUserId,
       target_user_id: targetUserId
     });
     logIfError("logCareCall", error);
+    return !error;
+  }
+
+  // Called by the RECEIVER, not the caller. Confirms every one of their own
+  // still-pending claims within the given local-day window at once — the
+  // UI never lets them pick a specific claim, since the whole point is that
+  // the prompt never reveals who claims to have called.
+  async function verifyPendingCallsForMe(userId, dayStartISO, dayEndISO) {
+    var { error } = await sb()
+      .from("care_calls")
+      .update({ verified: true, verified_at: new Date().toISOString() })
+      .eq("target_user_id", userId)
+      .eq("verified", false)
+      .gte("called_at", dayStartISO)
+      .lt("called_at", dayEndISO);
+    logIfError("verifyPendingCallsForMe", error);
     return !error;
   }
 
@@ -313,6 +331,7 @@
     setTodayFlag: setTodayFlag,
     incrementAppOpenToday: incrementAppOpenToday,
     getCareCallHistory: getCareCallHistory,
-    logCareCall: logCareCall
+    logCareCall: logCareCall,
+    verifyPendingCallsForMe: verifyPendingCallsForMe
   };
 })();

@@ -428,3 +428,32 @@ create policy "care_calls_insert_own"
   on care_calls for insert
   to authenticated
   with check (auth.uid() = caller_user_id);
+
+
+-- ============================================================================
+-- CARE CALL VERIFICATION (added later — safe to re-run)
+-- A call only counts toward the caller's journey points once the RECEIVER
+-- confirms it happened — not just on the caller's own say-so. Tapping
+-- "I called" creates a row with verified=false (a claim, not a credit);
+-- the target sees a generic "did someone call you today?" prompt (never
+-- naming who claims to have called) and confirming sets verified=true for
+-- every one of their pending claims from today at once. Nothing is ever
+-- marked "false"/denied — an unconfirmed claim just stays pending forever,
+-- which is what keeps this from being able to publicly shame anyone.
+--
+-- Trust note: RLS in Postgres works at the row level, not the column
+-- level, so this update policy technically lets a target rewrite any
+-- column on their own row, not just "verified". Given this app's existing
+-- trust model (every profile field is already just as self-reported), that
+-- tradeoff is accepted here rather than adding trigger-based column locks.
+-- ============================================================================
+
+alter table care_calls add column if not exists verified boolean not null default false;
+alter table care_calls add column if not exists verified_at timestamptz;
+
+drop policy if exists "care_calls_verify_own_as_target" on care_calls;
+create policy "care_calls_verify_own_as_target"
+  on care_calls for update
+  to authenticated
+  using (auth.uid() = target_user_id)
+  with check (auth.uid() = target_user_id);

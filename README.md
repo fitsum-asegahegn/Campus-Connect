@@ -213,6 +213,38 @@ from the suggestions for at least `CARE_CALL_MIN_GAP_DAYS` (3, tunable near
 the top of `app.js`) days, so nobody gets called twice in the same week by
 different people.
 
+**Calls only earn a journey point once the receiver confirms them —
+tapping "I called" is a claim, not a credit.** Concretely:
+- Abebe taps "✓ I called" on Kebede's card → a `care_calls` row is created
+  with `verified = false`. Nothing is credited yet.
+- Kebede sees a generic banner at the top of the **Feed** tab: "📞 Did
+  someone call you today?" — it never names who claims to have called.
+  Tapping "✓ Yes, someone called me" confirms **every** pending claim
+  against Kebede from today at once (there's no way to confirm one
+  specific claim over another — that's intentional, see below).
+- Only once confirmed does Abebe's claim add **+1 journey point**, counted
+  in `computeJourney()` alongside the reading/prayer/challenge/app-open
+  points. Unlike those four, confirmed calls are **not capped per day** —
+  the cap here is social, not numeric: getting a real person to confirm a
+  call actually happened is a much higher bar than any of the other
+  self-reported actions.
+- If Kebede never confirms — whether Abebe genuinely forgot to call, or
+  called and Kebede just hasn't opened the app — the claim stays pending
+  forever. It is never marked "denied" or shown as a failure anywhere;
+  it simply never converts into a point. Nothing shames anyone for a
+  claim that didn't pan out.
+
+**Why the confirmation prompt never names the caller:** if two different
+people both see "call Kebede" on the same day and both actually call him,
+Kebede's one "yes, someone called me" tap confirms both of their claims —
+there's no way to single out or dispute a specific claim from the UI. This
+is a deliberate trade-off: it means a false claim can occasionally piggy-
+back on a real "yes" if someone else genuinely called that same day, but
+it also means nobody is ever put in the position of publicly confirming or
+denying a specific named person's claim. Real-world knowledge (Kebede
+knows who he actually spoke to) is what keeps this honest in practice, not
+the UI.
+
 **Why self-serve instead of assigning specific callers:** this app has no
 leader/role system to formally assign "you call Selam today" to one
 specific person — everyone who's completed profile setup sees the exact

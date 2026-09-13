@@ -181,20 +181,36 @@
   // shared caravan currently is, and each person's own step count. The
   // Ethiopian-year filter is what makes the journey auto-reset every
   // Meskerem 1 — no admin action needed, old rows just stop counting.
-  function computeJourney(days){
+  function computeJourney(days, calls){
     var ethYear = todayEthiopian().year;
     var relevant = days.filter(function(d){
       try{ return gregorianToEthiopian(new Date(d.stepDate)).year === ethYear; }
       catch(e){ return false; }
     });
-    var totalSteps = relevant.reduce(function(sum,d){ return sum + d.points; }, 0);
-    var byUser = {};
-    relevant.forEach(function(d){
-      if (!byUser[d.userId]){
-        byUser[d.userId] = { userId: d.userId, name: d.name, gender: d.gender, avatarIcon: d.avatarIcon || AVATAR_ICONS[0], avatarColor: d.avatarColor || AVATAR_COLORS[0], steps: 0 };
-      }
-      byUser[d.userId].steps += d.points;
+    // Only CONFIRMED calls count, and only toward the caller's total — this
+    // is the one point source with no daily cap, because a real person on
+    // the other end having to confirm it is what keeps it honest.
+    var relevantCalls = (calls || []).filter(function(c){
+      if (!c.verified) return false;
+      try{ return gregorianToEthiopian(new Date(c.calledAt)).year === ethYear; }
+      catch(e){ return false; }
     });
+
+    var byUser = {};
+    function ensureUser(id, name, gender, avatarIcon, avatarColor){
+      if (!byUser[id]) byUser[id] = { userId: id, name: name, gender: gender, avatarIcon: avatarIcon || AVATAR_ICONS[0], avatarColor: avatarColor || AVATAR_COLORS[0], steps: 0 };
+      return byUser[id];
+    }
+
+    relevant.forEach(function(d){
+      ensureUser(d.userId, d.name, d.gender, d.avatarIcon, d.avatarColor).steps += d.points;
+    });
+    relevantCalls.forEach(function(c){
+      var dirEntry = state.directory.find(function(x){ return x.id === c.callerUserId; });
+      ensureUser(c.callerUserId, (dirEntry && dirEntry.name) || "—", dirEntry && dirEntry.gender, dirEntry && dirEntry.avatarIcon, dirEntry && dirEntry.avatarColor).steps += 1;
+    });
+
+    var totalSteps = relevant.reduce(function(sum,d){ return sum + d.points; }, 0) + relevantCalls.length;
     var people = Object.keys(byUser).map(function(k){ return byUser[k]; }).sort(function(a,b){ return a.userId < b.userId ? -1 : 1; });
     var currentWaypointIdx = Math.min(Math.floor(totalSteps / STEPS_PER_WAYPOINT), TOTAL_WAYPOINTS - 1);
     var arrived = totalSteps >= TOTAL_WAYPOINTS * STEPS_PER_WAYPOINT;
@@ -458,7 +474,7 @@
 
     var today = todayEthiopian();
     var birthdayPeople = state.directory.filter(function(d){
-      return d.birthday && d.birthday.day === today.day && d.birthday.month === today.month;
+      return d.id !== state.userId && d.birthday && d.birthday.day === today.day && d.birthday.month === today.month;
     });
     var birthdayBanner = "";
     if (birthdayPeople.length){
@@ -468,9 +484,19 @@
         + '</div>';
     }
 
+    var pendingCalls = myPendingCallConfirmations();
+    var callBanner = "";
+    if (pendingCalls.length){
+      callBanner = '<div class="fw-card accent-wine">'
+        + '<p class="fw-body-text" style="margin-top:0;">📞 ' + t("ዛሬ አንድ ሰው ደውሎልዎ ነበር?", "Did someone call you today?") + '</p>'
+        + '<div class="fw-inline-actions"><button class="fw-btn gold" id="confirm-call-btn">✓ ' + t("አዎ፣ አንድ ሰው ደውሎልኛል", "Yes, someone called me") + '</button></div>'
+        + '</div>';
+    }
+
     return ''
       + '<h2 class="fw-section-title">' + t("ዜና", "Feed") + '</h2>'
       + '<p class="fw-section-sub">' + t("ከሰንበት ትምህርት ቤቱ ወቅታዊ ዜናዎችና ፎቶዎች — ዛሬ ", "Updates and photos from the Sunday School — today is ") + fmtEthDate(today) + ' ' + t("(በኢትዮጵያ አቆጣጠር)።", "(Ethiopian calendar).") + '</p>'
+      + callBanner
       + birthdayBanner
       + items
       + '<div class="fw-fab-row"><button class="fw-btn gold" id="feed-new-btn">+ ' + t("አዲስ ልጥፍ", "New post") + '</button></div>';
@@ -740,7 +766,7 @@
   function renderGroup(){
     var ch = thisWeekChallenge();
     var chText = challengeText(ch);
-    var journey = computeJourney(state.journeySteps);
+    var journey = computeJourney(state.journeySteps, state.careCalls);
     var currentChapterIdx = Math.floor(journey.currentWaypointIdx / 4);
 
     if (state.journeyViewChapter === null){
@@ -769,7 +795,7 @@
 
     return ''
       + '<h2 class="fw-section-title">' + t("የበረሃው ጉዞ", "The Wilderness Journey") + '</h2>'
-      + '<p class="fw-section-sub">' + t("ሁላችንም አንድ ላይ ወደ ተስፋይቱ ምድር እንጓዛለን — በየቀኑ የምናደርገው ትንሽ ነገሮች ጉዞውን ያስቀጥላሉ።", "We're all traveling to the Promised Land together — the small things we do each day move the caravan.") + '</p>'
+      + '<p class="fw-section-sub">' + t("ሁላችንም አንድ ላይ ወደ ተስፋይቱ ምድር እንጓዛለን — በየቀኑ የምናደርገው ትንሽ ነገሮች ጉዞውን ያስቀጥላሉ። (ደውለው ሰዉ ካረጋገጠላቸው ተጨማሪ ነጥብ ያገኛሉ — ይህን በ አድራሻ ትር ውስጥ ይመልከቱ።)", "We're all traveling to the Promised Land together — the small things we do each day move the caravan. (Confirmed phone calls earn extra points too — see the Directory tab.)") + '</p>'
 
       + arrivedBanner
 
@@ -887,7 +913,39 @@
     state.careCalls = await DB.getCareCallHistory();
     cacheSet("careCalls", state.careCalls);
     render();
-    toast(t("🙏 አመሰግናለሁ! ተመዝግቧል።", "🙏 Thank you! Logged."));
+    toast(t("🙏 ተመዝግቧል — እነሱ ካረጋገጡ በኋላ ነጥብ ያገኛሉ።", "🙏 Noted — you'll get credit once they confirm."));
+  }
+
+  function localDayBoundsISO(){
+    var now = new Date();
+    var start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var end = new Date(start.getTime() + 86400000);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  }
+
+  // Who has an unconfirmed claim against them from today — shown to that
+  // person as a generic "did someone call you?" prompt, never naming a
+  // claimant, so confirming or not never accuses anyone specifically.
+  function myPendingCallConfirmations(){
+    var bounds = localDayBoundsISO();
+    var startMs = new Date(bounds.startISO).getTime();
+    var endMs = new Date(bounds.endISO).getTime();
+    return state.careCalls.filter(function(c){
+      if (c.targetUserId !== state.userId || c.verified) return false;
+      var t = new Date(c.calledAt).getTime();
+      return t >= startMs && t < endMs;
+    });
+  }
+
+  async function confirmReceivedCall(){
+    if (!guardOnline()) return;
+    var bounds = localDayBoundsISO();
+    var ok = await DB.verifyPendingCallsForMe(state.userId, bounds.startISO, bounds.endISO);
+    if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
+    state.careCalls = await DB.getCareCallHistory();
+    cacheSet("careCalls", state.careCalls);
+    render();
+    toast(t("🙏 አመሰግናለሁ!", "🙏 Thank you!"));
   }
 
   var dirFilter = "";
@@ -926,6 +984,8 @@
     // feed
     var fb = document.getElementById("feed-new-btn");
     if (fb) fb.onclick = openNewPostSheet;
+    var ccb = document.getElementById("confirm-call-btn");
+    if (ccb) ccb.onclick = confirmReceivedCall;
 
     // events
     document.querySelectorAll("[data-rsvp]").forEach(function(btn){

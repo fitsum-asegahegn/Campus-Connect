@@ -1,4 +1,4 @@
-// Campus Connect — service worker
+// Campus Connect — service worker 
 // Two jobs:
 //   1. Cache the app shell so the app opens instantly and works offline
 //      once visited at least once (shared/community data is mirrored to

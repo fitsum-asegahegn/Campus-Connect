@@ -27,6 +27,15 @@ icons/                 — logo + generated PWA icon sizes
 
 ## 1. Set up Supabase
 
+> **Note on re-running this file:** every `create policy` statement is now
+> preceded by a matching `drop policy if exists` — this was NOT always true
+> in earlier versions of this file (the first several tables' policies were
+> missing that guard, which caused `ERROR: 42710` on a second run and could
+> silently stop the rest of the script from executing). If you're working
+> from an older copy, replace it with this one — the whole file is now
+> genuinely safe to paste and run again at any time, in full, no matter how
+> many times it's already been run.
+
 1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
 2. **Dashboard → SQL Editor** → paste the entire contents of
    `supabase-schema.sql` → **Run**. This creates all tables, indexes, and
@@ -63,6 +72,34 @@ command empty) → **Deploy**.
 
 Open the resulting `https://your-project.vercel.app` URL on a phone and use
 "Add to Home Screen" — it installs like a native app using your logo.
+
+### "I made a change but the app still looks/behaves like before"
+
+This has two independent causes — check both:
+
+1. **Did the new code actually get deployed?** Vercel only redeploys when
+   it detects a new commit on the branch it's watching. If you edited
+   files locally (or asked for changes to a downloaded copy) but didn't
+   `git add . && git commit && git push` afterward, Vercel is still
+   serving the old build. Check the Vercel dashboard's deployment log —
+   the latest deployment's timestamp/commit should match what you expect.
+2. **Is the *browser* still holding an old cached copy?** `sw.js` caches
+   the app shell (`index.html`, `app.js`, etc.) so the app works offline —
+   which also means a phone that already had the app open can keep
+   serving the previous version for a bit even after a real redeploy,
+   until the new service worker fully takes over. If step 1 checks out
+   and it's still not updating: close the tab/app completely and reopen
+   it (sometimes twice — once to fetch the new service worker, once more
+   to actually load under it), or clear the site's storage from the
+   browser's site settings, or bump `CACHE_NAME` in `sw.js` yourself (any
+   change to that string forces every visitor's cache to invalidate on
+   their next visit).
+
+A schema change (re-running `supabase-schema.sql`) and a code change
+(redeploying) are two separate steps — doing one doesn't do the other.
+Setting `profiles.is_admin = true` for yourself, for example, does nothing
+visible until the *code* that checks that flag (the Admin tab) has also
+actually been deployed and loaded.
 
 ## Why anonymous auth?
 

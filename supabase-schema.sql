@@ -42,16 +42,19 @@ create table if not exists profiles (
 
 alter table profiles enable row level security;
 
+drop policy if exists "profiles_select_authenticated" on profiles;
 create policy "profiles_select_authenticated"
   on profiles for select
   to authenticated
   using (true);
 
+drop policy if exists "profiles_insert_own" on profiles;
 create policy "profiles_insert_own"
   on profiles for insert
   to authenticated
   with check (auth.uid() = id);
 
+drop policy if exists "profiles_update_own" on profiles;
 create policy "profiles_update_own"
   on profiles for update
   to authenticated
@@ -73,11 +76,13 @@ create index if not exists feed_posts_created_at_idx on feed_posts (created_at d
 
 alter table feed_posts enable row level security;
 
+drop policy if exists "feed_posts_select_authenticated" on feed_posts;
 create policy "feed_posts_select_authenticated"
   on feed_posts for select
   to authenticated
   using (true);
 
+drop policy if exists "feed_posts_insert_own" on feed_posts;
 create policy "feed_posts_insert_own"
   on feed_posts for insert
   to authenticated
@@ -102,11 +107,13 @@ create index if not exists events_date_idx on events (event_date);
 
 alter table events enable row level security;
 
+drop policy if exists "events_select_authenticated" on events;
 create policy "events_select_authenticated"
   on events for select
   to authenticated
   using (true);
 
+drop policy if exists "events_insert_own" on events;
 create policy "events_insert_own"
   on events for insert
   to authenticated
@@ -125,16 +132,19 @@ create table if not exists event_rsvps (
 
 alter table event_rsvps enable row level security;
 
+drop policy if exists "event_rsvps_select_authenticated" on event_rsvps;
 create policy "event_rsvps_select_authenticated"
   on event_rsvps for select
   to authenticated
   using (true);
 
+drop policy if exists "event_rsvps_insert_own" on event_rsvps;
 create policy "event_rsvps_insert_own"
   on event_rsvps for insert
   to authenticated
   with check (auth.uid() = user_id);
 
+drop policy if exists "event_rsvps_delete_own" on event_rsvps;
 create policy "event_rsvps_delete_own"
   on event_rsvps for delete
   to authenticated
@@ -157,11 +167,13 @@ create index if not exists prayer_requests_created_at_idx on prayer_requests (cr
 
 alter table prayer_requests enable row level security;
 
+drop policy if exists "prayer_requests_select_authenticated" on prayer_requests;
 create policy "prayer_requests_select_authenticated"
   on prayer_requests for select
   to authenticated
   using (true);
 
+drop policy if exists "prayer_requests_insert_own" on prayer_requests;
 create policy "prayer_requests_insert_own"
   on prayer_requests for insert
   to authenticated
@@ -177,11 +189,13 @@ create table if not exists prayer_reactions (
 
 alter table prayer_reactions enable row level security;
 
+drop policy if exists "prayer_reactions_select_authenticated" on prayer_reactions;
 create policy "prayer_reactions_select_authenticated"
   on prayer_reactions for select
   to authenticated
   using (true);
 
+drop policy if exists "prayer_reactions_insert_own" on prayer_reactions;
 create policy "prayer_reactions_insert_own"
   on prayer_reactions for insert
   to authenticated
@@ -220,6 +234,7 @@ create table if not exists reading_checks (
 
 alter table reading_checks enable row level security;
 
+drop policy if exists "reading_checks_all_own" on reading_checks;
 create policy "reading_checks_all_own"
   on reading_checks for all
   to authenticated
@@ -240,11 +255,13 @@ create table if not exists group_challenge_completions (
 
 alter table group_challenge_completions enable row level security;
 
+drop policy if exists "completions_select_authenticated" on group_challenge_completions;
 create policy "completions_select_authenticated"
   on group_challenge_completions for select
   to authenticated
   using (true);
 
+drop policy if exists "completions_insert_own" on group_challenge_completions;
 create policy "completions_insert_own"
   on group_challenge_completions for insert
   to authenticated
@@ -291,6 +308,7 @@ on conflict (id) do nothing;
 
 -- Anyone can view post images (matches feed_posts being readable by anyone
 -- signed in).
+drop policy if exists "post_images_public_read" on storage.objects;
 create policy "post_images_public_read"
   on storage.objects for select
   to public
@@ -299,6 +317,7 @@ create policy "post_images_public_read"
 -- People can only upload into a folder named after their own user id
 -- (app.js uploads to "<user_id>/<filename>"), so nobody can overwrite or
 -- clutter someone else's folder.
+drop policy if exists "post_images_insert_own_folder" on storage.objects;
 create policy "post_images_insert_own_folder"
   on storage.objects for insert
   to authenticated
@@ -309,6 +328,7 @@ create policy "post_images_insert_own_folder"
 
 -- People can delete their own uploaded images (not currently used by the
 -- app — there's no "delete post" button yet — but harmless to have ready).
+drop policy if exists "post_images_delete_own" on storage.objects;
 create policy "post_images_delete_own"
   on storage.objects for delete
   to authenticated

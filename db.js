@@ -26,6 +26,7 @@
       phone: row.phone || "",
       avatarIcon: row.avatar_icon || null,
       avatarColor: row.avatar_color || null,
+      isAdmin: !!row.is_admin,
       birthday: (row.bday_day && row.bday_month)
         ? { day: row.bday_day, month: row.bday_month, year: row.bday_year || null }
         : null
@@ -309,6 +310,24 @@
     return !error;
   }
 
+  /* ---------------- admin moderation ---------------- */
+  // These only succeed for someone whose OWN profiles.is_admin is true —
+  // enforced by the feed_posts_delete_admin / prayer_requests_delete_admin
+  // RLS policies, not by anything in this file. A non-admin calling these
+  // just gets an RLS error back (surfaced as `false`).
+
+  async function deleteFeedPost(postId) {
+    var { error } = await sb().from("feed_posts").delete().eq("id", postId);
+    logIfError("deleteFeedPost", error);
+    return !error;
+  }
+
+  async function deletePrayerRequest(requestId) {
+    var { error } = await sb().from("prayer_requests").delete().eq("id", requestId);
+    logIfError("deletePrayerRequest", error);
+    return !error;
+  }
+
   window.DB = {
     getMyProfile: getMyProfile,
     saveMyProfile: saveMyProfile,
@@ -332,6 +351,8 @@
     incrementAppOpenToday: incrementAppOpenToday,
     getCareCallHistory: getCareCallHistory,
     logCareCall: logCareCall,
-    verifyPendingCallsForMe: verifyPendingCallsForMe
+    verifyPendingCallsForMe: verifyPendingCallsForMe,
+    deleteFeedPost: deleteFeedPost,
+    deletePrayerRequest: deletePrayerRequest
   };
 })();

@@ -215,6 +215,10 @@
   /* group roster */
   .fw-roster-item{display:flex;align-items:center;gap:9px;padding:7px 0;font-size:13.5px;border-bottom:1px solid var(--line);}
   .fw-roster-item:last-child{border-bottom:none;}
+  .fw-admin-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+  .fw-stat-card{background:var(--surface);border:1px solid var(--line);padding:14px 10px;text-align:center;}
+  .fw-stat-num{font-size:26px;font-weight:700;color:var(--gold-deep);font-family:"Noto Serif Ethiopic",serif;}
+  .fw-stat-label{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
   .fw-dot{width:8px;height:8px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto;}
   .fw-dot.done{background:var(--green);}
 

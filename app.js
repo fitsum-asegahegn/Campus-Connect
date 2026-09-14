@@ -457,6 +457,7 @@
     else if (state.tab === "spiritual") main.innerHTML = renderSpiritual();
     else if (state.tab === "group") main.innerHTML = renderGroup();
     else if (state.tab === "directory") main.innerHTML = renderDirectory();
+    else if (state.tab === "admin") main.innerHTML = isAdmin() ? renderAdmin() : renderFeed();
     wireTabHandlers();
   }
 
@@ -948,6 +949,193 @@
     toast(t("🙏 አመሰግናለሁ!", "🙏 Thank you!"));
   }
 
+  /* ---------------- ADMIN ---------------- */
+  var ADMIN_OVERDUE_DAYS = 14; // "needs attention" threshold for last confirmed call
+
+  function isAdmin(){ return !!(state.profile && state.profile.isAdmin); }
+
+  function updateAdminTabVisibility(){
+    var btn = document.getElementById("fw-tab-admin-btn");
+    if (!btn) return;
+    if (isAdmin()) btn.classList.remove("fw-hidden");
+    else btn.classList.add("fw-hidden");
+  }
+
+  // Same computation feeds the on-screen dashboard AND both exported
+  // reports, so what a leader sees on their phone always matches what's in
+  // the document they hand to the Sunday School.
+  function computeAdminOverview(){
+    var now = Date.now();
+    var lastActiveByUser = {};
+    state.journeySteps.forEach(function(d){
+      var t = new Date(d.stepDate).getTime();
+      if (!lastActiveByUser[d.userId] || t > lastActiveByUser[d.userId]) lastActiveByUser[d.userId] = t;
+    });
+    var totalStepsByUser = {};
+    state.journeySteps.forEach(function(d){ totalStepsByUser[d.userId] = (totalStepsByUser[d.userId] || 0) + d.points; });
+    var lastCalledByUser = {};
+    state.careCalls.forEach(function(c){
+      if (!c.verified) return;
+      totalStepsByUser[c.callerUserId] = (totalStepsByUser[c.callerUserId] || 0) + 1;
+      var t = new Date(c.calledAt).getTime();
+      if (!lastCalledByUser[c.targetUserId] || t > lastCalledByUser[c.targetUserId]) lastCalledByUser[c.targetUserId] = t;
+    });
+
+    var rows = state.directory.map(function(m){
+      var lastActive = lastActiveByUser[m.id] || null;
+      var lastCalled = lastCalledByUser[m.id] || null;
+      return {
+        id: m.id, name: m.name, university: m.university, city: m.city, phone: m.phone,
+        totalSteps: totalStepsByUser[m.id] || 0,
+        lastActiveDays: lastActive ? Math.floor((now - lastActive) / 86400000) : null,
+        lastCalledDays: lastCalled ? Math.floor((now - lastCalled) / 86400000) : null
+      };
+    });
+
+    rows.sort(function(a,b){
+      var av = a.lastCalledDays === null ? Infinity : a.lastCalledDays;
+      var bv = b.lastCalledDays === null ? Infinity : b.lastCalledDays;
+      if (av !== bv) return bv - av;
+      var aa = a.lastActiveDays === null ? Infinity : a.lastActiveDays;
+      var ba = b.lastActiveDays === null ? Infinity : b.lastActiveDays;
+      return ba - aa;
+    });
+
+    var neverCalledCount = rows.filter(function(r){ return r.lastCalledDays === null; }).length;
+    var totalStepsAllTime = state.journeySteps.reduce(function(s,d){ return s + d.points; }, 0)
+      + state.careCalls.filter(function(c){ return c.verified; }).length;
+
+    return {
+      rows: rows,
+      totalMembers: state.directory.length,
+      neverCalledCount: neverCalledCount,
+      totalStepsAllTime: totalStepsAllTime,
+      overdueDays: ADMIN_OVERDUE_DAYS
+    };
+  }
+
+  function fmtDaysAgo(n){
+    if (n === null) return t("በጭራሽ", "never");
+    if (n === 0) return t("ዛሬ", "today");
+    return t(n + " ቀናት በፊት", n + " days ago");
+  }
+
+  function statCard(num, label){
+    return '<div class="fw-stat-card"><div class="fw-stat-num">' + num + '</div><div class="fw-stat-label">' + label + '</div></div>';
+  }
+
+  function renderAdmin(){
+    if (!isAdmin()){
+      return '<div class="fw-empty">' + t("ይህ ገጽ ለ አስተዳዳሪዎች ብቻ ነው።", "This page is for admins only.") + '</div>';
+    }
+    var ov = computeAdminOverview();
+    var attention = ov.rows.filter(function(r){ return r.lastCalledDays === null || r.lastCalledDays >= ov.overdueDays; });
+
+    var statsHtml = '<div class="fw-admin-stats">'
+      + statCard(ov.totalMembers, t("ጠቅላላ አባላት", "Total members"))
+      + statCard(ov.neverCalledCount, t("ፈጽሞ ያልተደወለላቸው", "Never called"))
+      + statCard(attention.length, t("ትኩረት የሚፈልጉ", "Need attention"))
+      + statCard(ov.totalStepsAllTime, t("ጠቅላላ እርምጃዎች", "Total steps"))
+      + '</div>';
+
+    var attentionHtml = attention.length ? attention.map(function(r){
+      var telHref = r.phone ? ("tel:" + r.phone.replace(/\s+/g, "")) : null;
+      return '<div class="fw-card accent-wine">'
+        + '<div class="fw-row-top"><span class="fw-name">' + escapeHtml(r.name) + '</span><span class="fw-meta">' + t("ጥሪ: ", "call: ") + fmtDaysAgo(r.lastCalledDays) + '</span></div>'
+        + '<p class="fw-meta" style="margin:2px 0 8px;">' + escapeHtml(r.university || "—") + (r.city ? " · " + escapeHtml(r.city) : "") + ' · ' + t("እንቅስቃሴ: ", "activity: ") + fmtDaysAgo(r.lastActiveDays) + '</p>'
+        + (telHref ? '<a class="fw-btn gold fw-tel-link" href="' + telHref + '">📞 ' + escapeHtml(r.phone) + '</a>' : '<span class="fw-meta">' + t("ስልክ አልገባም", "no phone on file") + '</span>')
+        + '</div>';
+    }).join("") : '<div class="fw-empty">' + t("ሁሉም በቅርብ ጊዜ ተደውሎላቸዋል 🎉", "Everyone's been reached recently 🎉") + '</div>';
+
+    var rosterHtml = ov.rows.length ? ov.rows.map(function(r){
+      return '<div class="fw-roster-item">'
+        + '<span>' + escapeHtml(r.name) + '</span>'
+        + '<span class="fw-meta" style="margin-left:auto;text-align:right;">' + r.totalSteps + ' ' + t("እርምጃ", "steps") + ' · ' + fmtDaysAgo(r.lastCalledDays) + '</span>'
+        + '</div>';
+    }).join("") : '<div class="fw-empty">' + t("ምንም አባል የለም", "No members yet") + '</div>';
+
+    var postsHtml = state.feed.slice(0, 15).map(function(post){
+      return '<div class="fw-card"><div class="fw-row-top"><span class="fw-name">' + escapeHtml(post.author) + '</span><span class="fw-meta">' + fmtDate(new Date(post.time).toISOString()) + '</span></div>'
+        + (post.text ? '<p class="fw-body-text">' + escapeHtml(post.text) + '</p>' : '')
+        + '<button class="fw-btn wine small" data-admin-del-post="' + post.id + '">🗑 ' + t("አጥፋ", "Delete") + '</button></div>';
+    }).join("") || '<div class="fw-empty">' + t("ምንም ልጥፍ የለም", "No posts") + '</div>';
+
+    var prayersHtml = state.prayers.slice(0, 15).map(function(pr){
+      return '<div class="fw-card"><p class="fw-body-text" style="margin-top:0;">' + escapeHtml(pr.text) + '</p>'
+        + '<button class="fw-btn wine small" data-admin-del-prayer="' + pr.id + '">🗑 ' + t("አጥፋ", "Delete") + '</button></div>';
+    }).join("") || '<div class="fw-empty">' + t("ምንም የጸሎት ጥያቄ የለም", "No prayer requests") + '</div>';
+
+    return ''
+      + '<h2 class="fw-section-title">🛡 ' + t("የአስተዳዳሪ ገጽ", "Admin") + '</h2>'
+      + '<p class="fw-section-sub">' + t("ይህ ገጽ የእርስዎ አካውንት አስተዳዳሪ ተደርጎ ስለተመዘገበ ብቻ ይታያል።", "This page only shows because your account is marked as admin.") + '</p>'
+      + statsHtml
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 4px;">⚠️ ' + t("ትኩረት የሚፈልጉ አባላት", "Members needing attention") + '</h3>'
+      + '<p class="fw-meta" style="margin:0 0 10px;">' + t("ላለፉት " + ADMIN_OVERDUE_DAYS + "+ ቀናት ያልተደወለላቸው ወይም ፈጽሞ ያልተደወለላቸው።", "Nobody's confirmed calling them in " + ADMIN_OVERDUE_DAYS + "+ days, or ever.") + '</p>'
+      + attentionHtml
+
+      + '<div class="fw-divider"></div>'
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 8px;">' + t("ሁሉም አባላት", "All members") + '</h3>'
+      + rosterHtml
+
+      + '<div class="fw-divider"></div>'
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 8px;">📤 ' + t("ሪፖርት ማዘጋጀት", "Export report") + '</h3>'
+      + '<p class="fw-meta" style="margin:0 0 10px;">' + t("ለ ሰንበት ትምህርት ቤቱ ለማቅረብ የሚሆን ሪፖርት፣ ከላይ ካለው ተመሳሳይ መረጃ የተዘጋጀ።", "Suitable to hand to the Sunday School — built from the same data shown above.") + '</p>'
+      + '<div class="fw-inline-actions">'
+      + '<button class="fw-btn gold" id="admin-gen-docx">📄 ' + t("የዎርድ ሪፖርት", "Word report") + '</button>'
+      + '<button class="fw-btn gold" id="admin-gen-pptx">📊 ' + t("የፓወርፖይንት ሪፖርት", "PowerPoint report") + '</button>'
+      + '</div>'
+
+      + '<div class="fw-divider"></div>'
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 8px;">' + t("የቅርብ ጊዜ ልጥፎች", "Recent feed posts") + '</h3>'
+      + postsHtml
+
+      + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:16px 0 8px;">' + t("የቅርብ ጊዜ የጸሎት ጥያቄዎች", "Recent prayer requests") + '</h3>'
+      + prayersHtml;
+  }
+
+  async function handleGenerateReport(kind){
+    if (!guardOnline()) return;
+    if (!isAdmin()) return;
+    var btnId = kind === "docx" ? "admin-gen-docx" : "admin-gen-pptx";
+    var btn = document.getElementById(btnId);
+    var originalText = btn ? btn.textContent : "";
+    if (btn){ btn.disabled = true; btn.textContent = t("በማዘጋጀት ላይ…", "Preparing…"); }
+    try{
+      var overview = computeAdminOverview();
+      var meta = { generatedOn: fmtEthDate(todayEthiopian()) + " (" + t("ኢትዮጵያዊ", "Ethiopian") + ")", lang: LANG };
+      if (kind === "docx") await AdminReports.generateDocx(overview, meta);
+      else await AdminReports.generatePptx(overview, meta);
+      toast(t("✅ ተዘጋጅቷል! ወርዷል።", "✅ Ready! Downloaded."));
+    }catch(e){
+      console.error(e);
+      toast(t("አልተሳካም — ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ", "Failed — check your connection and try again"));
+    }finally{
+      if (btn){ btn.disabled = false; btn.textContent = originalText; }
+    }
+  }
+
+  async function adminDeletePost(postId){
+    if (!guardOnline() || !isAdmin()) return;
+    if (!window.confirm(t("ይህን ልጥፍ ማጥፋት ይፈልጋሉ?", "Delete this post?"))) return;
+    var ok = await DB.deleteFeedPost(postId);
+    if (!ok){ toast(t("አልተሳካም", "Something went wrong")); return; }
+    state.feed = await DB.getFeed();
+    cacheSet("feed", state.feed);
+    render();
+    toast(t("ተሰርዟል", "Deleted"));
+  }
+
+  async function adminDeletePrayer(requestId){
+    if (!guardOnline() || !isAdmin()) return;
+    if (!window.confirm(t("ይህን የጸሎት ጥያቄ ማጥፋት ይፈልጋሉ?", "Delete this prayer request?"))) return;
+    var ok = await DB.deletePrayerRequest(requestId);
+    if (!ok){ toast(t("አልተሳካም", "Something went wrong")); return; }
+    state.prayers = await DB.getPrayerWall();
+    cacheSet("prayers", state.prayers);
+    render();
+    toast(t("ተሰርዟል", "Deleted"));
+  }
+
   var dirFilter = "";
   function renderDirectory(){
     var myUni = state.profile && state.profile.university;
@@ -1021,6 +1209,18 @@
     if (dam) dam.onclick = openProfileSheet;
     document.querySelectorAll("[data-logcall]").forEach(function(btn){
       btn.onclick = function(){ logCareCall(btn.getAttribute("data-logcall")); };
+    });
+
+    // admin
+    var genDocx = document.getElementById("admin-gen-docx");
+    if (genDocx) genDocx.onclick = function(){ handleGenerateReport("docx"); };
+    var genPptx = document.getElementById("admin-gen-pptx");
+    if (genPptx) genPptx.onclick = function(){ handleGenerateReport("pptx"); };
+    document.querySelectorAll("[data-admin-del-post]").forEach(function(btn){
+      btn.onclick = function(){ adminDeletePost(btn.getAttribute("data-admin-del-post")); };
+    });
+    document.querySelectorAll("[data-admin-del-prayer]").forEach(function(btn){
+      btn.onclick = function(){ adminDeletePrayer(btn.getAttribute("data-admin-del-prayer")); };
     });
   }
 
@@ -1200,6 +1400,7 @@
     wireTabs();
     render();
     updateOfflineBanner();
+    updateAdminTabVisibility();
 
     document.getElementById("fw-lang-toggle").onclick = function(){
       LANG = LANG === "am" ? "en" : "am";
@@ -1246,6 +1447,7 @@
       wireTabs();
       render();
       updateOfflineBanner();
+      updateAdminTabVisibility();
 
       if (typeof Notifications !== "undefined" && Notifications.isSupported()){
         Notifications.startWatcher(function(){ return LANG; });

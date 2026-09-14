@@ -457,3 +457,37 @@ create policy "care_calls_verify_own_as_target"
   to authenticated
   using (auth.uid() = target_user_id)
   with check (auth.uid() = target_user_id);
+
+
+-- ============================================================================
+-- ADMIN (added later — safe to re-run)
+--
+-- is_admin is set by YOU, directly in the Supabase Table Editor (Table
+-- Editor → profiles → find the person's row → toggle is_admin to true).
+-- There is no in-app way to grant it — that's deliberate; app.js only ever
+-- READS this flag to decide whether to reveal the Admin tab, it never
+-- writes it.
+--
+-- Everything the admin dashboard reads (profiles, journey_steps,
+-- care_calls, feed_posts, prayer_requests) was ALREADY readable by every
+-- signed-in member under the existing "select ... using (true)" policies
+-- above — being an admin doesn't unlock any new visibility, it just adds a
+-- UI that organizes what was already technically visible into something a
+-- leader can actually act on. The two DELETE policies below are the only
+-- genuinely NEW capability — regular members still cannot delete anyone's
+-- feed post or prayer request, only an admin can.
+-- ============================================================================
+
+alter table profiles add column if not exists is_admin boolean not null default false;
+
+drop policy if exists "feed_posts_delete_admin" on feed_posts;
+create policy "feed_posts_delete_admin"
+  on feed_posts for delete
+  to authenticated
+  using (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin = true));
+
+drop policy if exists "prayer_requests_delete_admin" on prayer_requests;
+create policy "prayer_requests_delete_admin"
+  on prayer_requests for delete
+  to authenticated
+  using (exists (select 1 from profiles p where p.id = auth.uid() and p.is_admin = true));

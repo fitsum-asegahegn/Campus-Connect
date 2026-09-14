@@ -18,6 +18,7 @@ auth.js                — anonymous Supabase authentication
 config.js              — YOUR Supabase URL + anon key go here
 idb-reminders.js       — shared IndexedDB schedule (used by app.js AND sw.js)
 notifications.js       — local notification permission + scheduling
+admin-reports.js       — Word/PowerPoint activity report generation (admin only, lazy-loaded)
 supabase-schema.sql    — run this once in the Supabase SQL editor
 manifest.json          — PWA manifest (name, icons, colors, install behavior)
 sw.js                  — service worker (offline caching + reminder wake-ups)
@@ -263,6 +264,82 @@ technically readable by any signed-in member through the API itself (Row
 Level Security grants `select` on the whole `profiles` row to any
 authenticated user, same as birthday/university already are) — "not shown
 in the Directory list" describes the UI, not a hard access restriction.
+
+## Admin dashboard
+
+A leader-only tab — invisible to every regular member's UI, nothing about
+the 5 normal tabs changes for them.
+
+**Turning someone into an admin** is manual and deliberate: Supabase
+Dashboard → Table Editor → `profiles` → find their row → set `is_admin` to
+`true`. There is no in-app way to grant this, on purpose — `app.js` only
+ever *reads* the flag. Once set, the 🛡 Admin tab appears next time that
+person's app loads (checked once from cache immediately, then confirmed
+again once a live connection lands, so it can't get stuck showing/hiding
+incorrectly).
+
+**What it shows, all computed from data every member's app already loads:**
+- **Overview numbers**: total members, never-called count, how many need
+  attention, total journey points earned all-time.
+- **⚠️ Members needing attention** — sorted worst-first: nobody's confirmed
+  calling them in `ADMIN_OVERDUE_DAYS` (14, tunable near the top of
+  `app.js`) days, or ever. This is the direct answer to "who's long gone
+  and nobody's reached" — someone who's both inactive *and* uncalled sorts
+  to the very top.
+- **Full member roster** — everyone, with their total journey points and
+  last-confirmed-call.
+- **Moderation** — the 15 most recent feed posts and prayer requests, each
+  with a 🗑 Delete. This is the one genuinely new *capability* (not just
+  visibility) admin status grants — regular members still cannot delete
+  anyone's post. Enforced by two new RLS policies
+  (`feed_posts_delete_admin`, `prayer_requests_delete_admin`) that check
+  the caller's own `profiles.is_admin` — not just a client-side check, so
+  it holds even if someone inspects the API directly.
+
+**One thing worth being clear-eyed about**: nothing above required
+unlocking new *visibility*. Every table the dashboard reads from
+(`profiles`, `journey_steps`, `care_calls`, `feed_posts`,
+`prayer_requests`) already grants `select` to any authenticated member —
+including phone numbers, same as the rest of this app's trust model
+(documented earlier in this file). Being admin doesn't see more data than
+anyone technically already could; it organizes what was already readable
+into something a leader can actually act on, plus the delete capability.
+
+## Word & PowerPoint activity reports
+
+Two buttons on the Admin tab — 📄 Word report and 📊 PowerPoint report —
+generate a real `.docx` or `.pptx` file **entirely in the browser** and
+download it immediately. No server, no Anthropic/OpenAI-style document
+service, nothing leaves the browser except the two libraries that do the
+actual file-building:
+
+- **Word**: [docx.js](https://docx.js.org) loaded from
+  `unpkg.com/docx@8/build/index.js`
+- **PowerPoint**: [PptxGenJS](https://gitbrent.github.io/PptxGenJS/) loaded
+  from `cdn.jsdelivr.net/npm/pptxgenjs@3`
+
+Both are **lazy-loaded** — the `<script>` tag is only injected the moment
+an admin actually clicks one of the two buttons, so regular members never
+download this code at all, and even admins only pay the cost the first
+time they generate a report in a session. This does mean **generating a
+report needs an internet connection** (to fetch the library), same as
+everything else that talks to Supabase.
+
+**Report contents** (identical data source for both formats, and identical
+to what's on screen — nothing is computed separately for the export):
+title/generation-date, the overview numbers, the "needs attention" table,
+and the full member roster. The PowerPoint splits long tables across
+multiple slides (10 rows each) automatically.
+
+**Why this needed real libraries instead of something simpler**: a `.docx`
+or `.pptx` file is a real, structured file format (technically a zip of
+XML parts) — there's no shortcut that produces something Word/PowerPoint
+will actually open correctly. `docx.js` is the same library already used
+to generate the yearly departmental plan document earlier in this
+project's history, just running in the browser this time (`Packer.toBlob`
+instead of Node's `Packer.toBuffer`).
+
+
 
 ## Local reminder notifications
 

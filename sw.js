@@ -1,4 +1,4 @@
-// Campus Connect — service worker 
+// Campus Connect — service worker
 // Two jobs:
 //   1. Cache the app shell so the app opens instantly and works offline
 //      once visited at least once (shared/community data is mirrored to
@@ -12,7 +12,7 @@
 
 importScripts("idb-reminders.js");
 
-const CACHE_NAME = "campus-connect-v12";
+const CACHE_NAME = "campus-connect-v14";
 
 const APP_SHELL = [
   "./",

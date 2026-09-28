@@ -266,8 +266,19 @@
       var cy = lerp(from.y, to.y, f);
       svg += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="none" stroke="#B8860B" stroke-width="2.5"/>';
 
+      // Position people by RANK (more personal steps = always further along),
+      // not by (steps % STEPS_PER_WAYPOINT) — that wraps around every time
+      // someone crosses a multiple of STEPS_PER_WAYPOINT, which could put
+      // someone with far more total steps visually behind someone with far
+      // fewer. Ranking guarantees strict, permanent ordering by steps.
+      var stepsList = journey.people.map(function(p){ return p.steps; });
+      var maxSteps = stepsList.length ? Math.max.apply(null, stepsList) : 0;
+      var minSteps = stepsList.length ? Math.min.apply(null, stepsList) : 0;
+      var range = Math.max(1, maxSteps - minSteps);
+
       journey.people.forEach(function(person, idx){
-        var pf = (localCurrent < 3) ? ((person.steps % STEPS_PER_WAYPOINT) / STEPS_PER_WAYPOINT) : 0;
+        var norm = (person.steps - minSteps) / range; // 0..1, strictly monotonic with steps
+        var pf = (localCurrent < 3) ? (0.1 + norm * 0.8) : 0.92; // keep clear of both waypoint circles
         var jx = ((idx * 37) % 21) - 10;
         var jy = ((idx * 53) % 17) - 8;
         var px = lerp(from.x, to.x, pf) + jx;
@@ -630,6 +641,7 @@
       var ok = await DB.createEvent(state.userId, { title_am: title_am, title_en: title_en, date: from, type: "break", note: note });
       if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
       state.events = await DB.getEvents();
+      cacheSet("events", state.events);
       closeOverlay();
       state.tab = "events";
       render();
@@ -642,6 +654,7 @@
     var joining = state.rsvps.indexOf(id) === -1;
     await DB.setRsvp(state.userId, id, joining);
     state.rsvps = await DB.getMyRsvps(state.userId);
+    cacheSet("rsvps", state.rsvps);
     if (Notifications && Notifications.isSupported() && Notifications.permission() === "granted"){
       var ev = state.events.find(function(e){ return e.id === id; });
       if (joining && ev){
@@ -719,6 +732,7 @@
       var ok = await DB.createPrayerRequest(state.userId, text, anon);
       if (!ok){ toast(t("አልተሳካም — እንደገና ይሞክሩ", "Something went wrong — please try again")); return; }
       state.prayers = await DB.getPrayerWall();
+      cacheSet("prayers", state.prayers);
       closeOverlay();
       render();
       toast(t("ተልኳል 🙏", "Sent 🙏"));
@@ -742,6 +756,8 @@
     await DB.prayForRequest(state.userId, id);
     state.prayers = await DB.getPrayerWall();
     state.prayed = await DB.getMyPrayed(state.userId);
+    cacheSet("prayers", state.prayers);
+    cacheSet("prayed", state.prayed);
     render();
     if (!state.myToday.prayer_done){
       await DB.setTodayFlag(state.userId, todayDateStr(), "prayer_done", true);
@@ -755,6 +771,7 @@
     var checking = state.readChecked.indexOf(i) === -1;
     await DB.setReadingCheck(state.userId, i, checking);
     state.readChecked = await DB.getMyReadingChecks(state.userId);
+    cacheSet("readChecked", state.readChecked);
     render();
     if (checking && !state.myToday.reading_done){
       await DB.setTodayFlag(state.userId, todayDateStr(), "reading_done", true);

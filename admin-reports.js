@@ -49,127 +49,133 @@ var AdminReports = (function () {
 
   /* ================= DOCX ================= */
 
+  // Builds a minimal but genuinely valid .docx by hand -- a .docx is just a
+  // zip of a few XML parts, so this writes those parts directly instead of
+  // depending on a full document-building library (an earlier version used
+  // docx.js from a CDN and its browser bundle was not reliable in practice).
+  function escXml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  }
+
   async function generateDocx(overview, meta) {
     await loadScriptOnce(
-      "https://unpkg.com/docx@8/build/index.js",
-      function () { return typeof window.docx !== "undefined"; }
+      "https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js",
+      function () { return typeof window.JSZip !== "undefined"; }
     );
-    var d = window.docx;
     var L = meta.lang === "am";
-    var FONT = "Noto Sans Ethiopic";
     var GREEN = "1F3D2B", GOLD = "A6791F", LINE = "E4D5AE";
+    var FONT_TAG = '<w:rFonts w:ascii="Noto Sans Ethiopic" w:hAnsi="Noto Sans Ethiopic" w:cs="Noto Sans Ethiopic"/>';
 
-    function run(text, opts) { return new d.TextRun(Object.assign({ text: String(text), font: FONT }, opts || {})); }
-    function p(text, opts) { return new d.Paragraph(Object.assign({ children: [run(text, opts && opts.run)] }, opts && opts.para)); }
+    function run(text, opts) {
+      opts = opts || {};
+      var rpr = "<w:rPr>" + FONT_TAG
+        + (opts.bold ? "<w:b/>" : "")
+        + (opts.italic ? "<w:i/>" : "")
+        + (opts.color ? '<w:color w:val="' + opts.color + '"/>' : "")
+        + '<w:sz w:val="' + (opts.size || 20) + '"/><w:szCs w:val="' + (opts.size || 20) + '"/>'
+        + "</w:rPr>";
+      return "<w:r>" + rpr + '<w:t xml:space="preserve">' + escXml(text) + "</w:t></w:r>";
+    }
+    function para(text, opts) {
+      opts = opts || {};
+      var ppr = "<w:pPr>"
+        + (opts.align ? '<w:jc w:val="' + opts.align + '"/>' : "")
+        + (opts.spacingAfter !== undefined ? '<w:spacing w:after="' + opts.spacingAfter + '"/>' : "")
+        + (opts.heading ? '<w:pBdr><w:bottom w:val="single" w:sz="8" w:space="4" w:color="' + GOLD + '"/></w:pBdr>' : "")
+        + "</w:pPr>";
+      return "<w:p>" + ppr + run(text, opts) + "</w:p>";
+    }
     function cell(text, opts) {
       opts = opts || {};
-      return new d.TableCell({
-        width: { size: opts.width, type: d.WidthType.DXA },
-        shading: opts.shade ? { type: d.ShadingType.CLEAR, fill: opts.shade } : undefined,
-        margins: { top: 60, bottom: 60, left: 90, right: 90 },
-        children: [new d.Paragraph({ children: [run(text, { bold: !!opts.bold, color: opts.color, size: opts.size || 18 })] })]
-      });
+      var tcpr = '<w:tcPr><w:tcW w:w="' + (opts.width || 2000) + '" w:type="dxa"/>'
+        + (opts.shade ? '<w:shd w:val="clear" w:fill="' + opts.shade + '"/>' : "")
+        + "</w:tcPr>";
+      return "<w:tc>" + tcpr + para(String(text), { bold: opts.bold, color: opts.color, size: opts.size || 18 }) + "</w:tc>";
+    }
+    function row(cells) { return "<w:tr>" + cells.join("") + "</w:tr>"; }
+    function table(rows) {
+      var borders = "<w:tblBorders>" + ["top","left","bottom","right","insideH","insideV"].map(function(s){
+        return '<w:' + s + ' w:val="single" w:sz="4" w:color="' + LINE + '"/>';
+      }).join("") + "</w:tblBorders>";
+      return '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>' + borders + "</w:tblPr>" + rows.join("") + "</w:tbl>";
     }
 
     var COLW = { name: 2200, uni: 2000, steps: 1200, active: 1600, called: 1600, phone: 1400 };
     function headerRow() {
-      return new d.TableRow({
-        tableHeader: true, cantSplit: true,
-        children: [
-          cell(L ? "ስም" : "Name", { width: COLW.name, shade: GREEN, color: "FFFFFF", bold: true }),
-          cell(L ? "ዩኒቨርሲቲ" : "University", { width: COLW.uni, shade: GREEN, color: "FFFFFF", bold: true }),
-          cell(L ? "እርምጃዎች" : "Steps", { width: COLW.steps, shade: GREEN, color: "FFFFFF", bold: true }),
-          cell(L ? "መጨረሻ ንቁ" : "Last active", { width: COLW.active, shade: GREEN, color: "FFFFFF", bold: true }),
-          cell(L ? "መጨረሻ ጥሪ" : "Last called", { width: COLW.called, shade: GREEN, color: "FFFFFF", bold: true }),
-          cell(L ? "ስልክ" : "Phone", { width: COLW.phone, shade: GREEN, color: "FFFFFF", bold: true })
-        ]
-      });
+      return row([
+        cell(L ? "ስም" : "Name", { width: COLW.name, shade: GREEN, color: "FFFFFF", bold: true }),
+        cell(L ? "ዩኒቨርሲቲ" : "University", { width: COLW.uni, shade: GREEN, color: "FFFFFF", bold: true }),
+        cell(L ? "እርምጃዎች" : "Steps", { width: COLW.steps, shade: GREEN, color: "FFFFFF", bold: true }),
+        cell(L ? "መጨረሻ ንቁ" : "Last active", { width: COLW.active, shade: GREEN, color: "FFFFFF", bold: true }),
+        cell(L ? "መጨረሻ ጥሪ" : "Last called", { width: COLW.called, shade: GREEN, color: "FFFFFF", bold: true }),
+        cell(L ? "ስልክ" : "Phone", { width: COLW.phone, shade: GREEN, color: "FFFFFF", bold: true })
+      ]);
     }
     function dataRow(r, i) {
       var shade = i % 2 === 1 ? "FBF6E9" : undefined;
-      return new d.TableRow({
-        cantSplit: true,
-        children: [
-          cell(r.name, { width: COLW.name, shade: shade }),
-          cell(r.university || "—", { width: COLW.uni, shade: shade }),
-          cell(r.totalSteps, { width: COLW.steps, shade: shade }),
-          cell(fmtDays(r.lastActiveDays, meta.lang), { width: COLW.active, shade: shade }),
-          cell(fmtDays(r.lastCalledDays, meta.lang), { width: COLW.called, shade: shade }),
-          cell(r.phone || "—", { width: COLW.phone, shade: shade })
-        ]
-      });
+      return row([
+        cell(r.name, { width: COLW.name, shade: shade }),
+        cell(r.university || "—", { width: COLW.uni, shade: shade }),
+        cell(r.totalSteps, { width: COLW.steps, shade: shade }),
+        cell(fmtDays(r.lastActiveDays, meta.lang), { width: COLW.active, shade: shade }),
+        cell(fmtDays(r.lastCalledDays, meta.lang), { width: COLW.called, shade: shade }),
+        cell(r.phone || "—", { width: COLW.phone, shade: shade })
+      ]);
     }
     function buildTable(rows) {
-      var total = COLW.name + COLW.uni + COLW.steps + COLW.active + COLW.called + COLW.phone;
-      return new d.Table({
-        width: { size: total, type: d.WidthType.DXA },
-        columnWidths: [COLW.name, COLW.uni, COLW.steps, COLW.active, COLW.called, COLW.phone],
-        borders: {
-          top: { style: d.BorderStyle.SINGLE, size: 4, color: LINE },
-          bottom: { style: d.BorderStyle.SINGLE, size: 4, color: LINE },
-          left: { style: d.BorderStyle.SINGLE, size: 4, color: LINE },
-          right: { style: d.BorderStyle.SINGLE, size: 4, color: LINE },
-          insideHorizontal: { style: d.BorderStyle.SINGLE, size: 4, color: LINE },
-          insideVertical: { style: d.BorderStyle.SINGLE, size: 4, color: LINE }
-        },
-        rows: [headerRow()].concat(rows.map(dataRow))
-      });
+      return table([headerRow()].concat(rows.map(dataRow)));
     }
 
     var attention = overview.rows.filter(function (r) {
       return r.lastCalledDays === null || r.lastCalledDays >= overview.overdueDays;
     });
 
-    var children = [];
-    children.push(new d.Paragraph({
-      alignment: d.AlignmentType.CENTER,
-      spacing: { after: 40 },
-      children: [run(L ? "ግቢ ጉባኤ ትስስር" : "Campus Connect", { size: 22, color: GREEN })]
-    }));
-    children.push(new d.Paragraph({
-      alignment: d.AlignmentType.CENTER,
-      spacing: { after: 20 },
-      children: [run(L ? "የተማሪዎች እንቅስቃሴ ሪፖርት" : "Student Activity Report", { size: 30, bold: true, color: GOLD })]
-    }));
-    children.push(new d.Paragraph({
-      alignment: d.AlignmentType.CENTER,
-      spacing: { after: 300 },
-      children: [run((L ? "ተዘጋጅቷል: " : "Generated: ") + meta.generatedOn, { italics: true, size: 20, color: "6B5D42" })]
-    }));
+    var body = "";
+    body += para(L ? "ግቢ ጉባኤ ትስስር" : "Campus Connect", { align: "center", color: GREEN, size: 22, spacingAfter: 40 });
+    body += para(L ? "የተማሪዎች እንቅስቃሴ ሪፖርት" : "Student Activity Report", { align: "center", bold: true, color: GOLD, size: 30, spacingAfter: 20 });
+    body += para((L ? "ተዘጋጅቷል: " : "Generated: ") + meta.generatedOn, { align: "center", italic: true, color: "6B5D42", size: 20, spacingAfter: 300 });
 
-    children.push(p(L
-      ? "ጠቅላላ አባላት: " + overview.totalMembers + "  ·  ፈጽሞ ያልተደወለላቸው: " + overview.neverCalledCount + "  ·  ጠቅላላ የጉዞ እርምጃዎች: " + overview.totalStepsAllTime
-      : "Total members: " + overview.totalMembers + "  ·  Never called: " + overview.neverCalledCount + "  ·  Total journey steps: " + overview.totalStepsAllTime,
-      { run: { size: 21, bold: true }, para: { spacing: { after: 240 } } }
-    ));
-
-    children.push(new d.Paragraph({
-      heading: d.HeadingLevel.HEADING_1,
-      spacing: { before: 200, after: 100 },
-      border: { bottom: { color: GOLD, space: 4, style: d.BorderStyle.SINGLE, size: 8 } },
-      children: [run(L ? "⚠ ትኩረት የሚፈልጉ አባላት" : "⚠ Members needing attention", { bold: true, size: 26, color: GREEN })]
-    }));
-    children.push(attention.length
-      ? buildTable(attention)
-      : p(L ? "ሁሉም በቅርብ ተደውሎላቸዋል።" : "Everyone has been reached recently.", { run: { italics: true, size: 20 } })
+    body += para(
+      L ? ("ጠቅላላ አባላት: " + overview.totalMembers + "  ·  ፈጽሞ ያልተደወለላቸው: " + overview.neverCalledCount + "  ·  ጠቅላላ የጉዞ እርምጃዎች: " + overview.totalStepsAllTime)
+        : ("Total members: " + overview.totalMembers + "  ·  Never called: " + overview.neverCalledCount + "  ·  Total journey steps: " + overview.totalStepsAllTime),
+      { bold: true, size: 21, spacingAfter: 240 }
     );
 
-    children.push(new d.Paragraph({
-      heading: d.HeadingLevel.HEADING_1,
-      spacing: { before: 400, after: 100 },
-      border: { bottom: { color: GOLD, space: 4, style: d.BorderStyle.SINGLE, size: 8 } },
-      children: [run(L ? "ሙሉ የተማሪዎች ዝርዝር" : "Full member list", { bold: true, size: 26, color: GREEN })]
-    }));
-    children.push(buildTable(overview.rows));
+    body += para(L ? "⚠ ትኩረት የሚፈልጉ አባላት" : "⚠ Members needing attention", { bold: true, color: GREEN, size: 26, spacingAfter: 100, heading: true });
+    body += attention.length
+      ? buildTable(attention)
+      : para(L ? "ሁሉም በቅርብ ተደውሎላቸዋል።" : "Everyone has been reached recently.", { italic: true, size: 20 });
 
-    var doc = new d.Document({
-      sections: [{
-        properties: { page: { margin: { top: 1080, bottom: 1080, left: 1080, right: 1080 } } },
-        children: children
-      }]
+    body += para(L ? "ሙሉ የተማሪዎች ዝርዝር" : "Full member list", { bold: true, color: GREEN, size: 26, spacingAfter: 100, heading: true });
+    body += buildTable(overview.rows);
+
+    var documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+      + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+      + "<w:body>" + body
+      + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>'
+      + "</w:body></w:document>";
+
+    var contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+      + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+      + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+      + '<Default Extension="xml" ContentType="application/xml"/>'
+      + '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+      + "</Types>";
+
+    var relsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+      + "</Relationships>";
+
+    var zip = new window.JSZip();
+    zip.file("[Content_Types].xml", contentTypesXml);
+    zip.file("_rels/.rels", relsXml);
+    zip.file("word/document.xml", documentXml);
+
+    var blob = await zip.generateAsync({
+      type: "blob",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     });
-
-    var blob = await d.Packer.toBlob(doc);
     downloadBlob(blob, "campus-connect-activity-report.docx");
   }
 

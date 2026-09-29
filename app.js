@@ -105,22 +105,88 @@
     { am: "በጌታ ሁልጊዜ ደስ ይበላችሁ፤ ደግሜ እላለሁ ደስ ይበላችሁ።", en: "Rejoice in the Lord always; again I will say, rejoice.", ref: "ፊል 4:4 / Phil 4:4" },
     { am: "ልጆቼ ኑ ስሙኝ እግዚአብሔርን መፍራት አስተምራችኋለሁ።", en: "Come, children, listen to me; I will teach you the fear of the Lord.", ref: "መዝ 34:11 / Ps 34:11" },
     { am: "ሸክማችሁን ሁሉ በእርሱ ላይ ጣሉ፤ እርሱ ስለ እናንተ ያስባልና።", en: "Cast all your anxiety on Him, because He cares for you.", ref: "1ጴጥ 5:7 / 1 Pet 5:7" },
-    { am: "የልብን ደስታ እግዚአብሔር ይሰጣል፤ ተስፋችሁን በእርሱ አድርጉ።", en: "Trust in the Lord with all your heart.", ref: "ምሳ 3:5 / Prov 3:5" }
+    { am: "በፍጹም ልብህ በእግዚአብሔር ታመን፥ በራስህም ማስተዋል አትደገፍ።", en: "Trust in the Lord with all your heart and lean not on your own understanding.", ref: "ምሳ 3:5 / Prov 3:5" },
+    { am: "እግዚአብሔር እረኛዬ ነው፥ የሚያሳጣኝም የለም።", en: "The Lord is my shepherd; I shall not want.", ref: "መዝ 23:1 / Ps 23:1" },
+    { am: "በእርሱ የሚያምን ሁሉ የዘላለም ሕይወት እንዲኖረው እንጂ እንዳይጠፋ እግዚአብሔር አንድያ ልጁን እስኪሰጥ ድረስ ዓለሙን እንዲሁ ወዶአልና።", en: "For God so loved the world that He gave His only Son, that whoever believes in Him should not perish but have eternal life.", ref: "ዮሐ 3:16 / John 3:16" },
+    { am: "ዓይኖቼን ወደ ተራሮች አነሣለሁ፥ ረዳቴ ከወዴት ይመጣል? ረዳቴ ሰማይንና ምድርን ከሠራ ከእግዚአብሔር ዘንድ ነው።", en: "I lift up my eyes to the hills — where does my help come from? My help comes from the Lord, who made heaven and earth.", ref: "መዝ 121:1-2 / Ps 121:1-2" },
+    { am: "እናንተ ደካሞች ሸክማችሁ የከበደ ሁሉ ወደ እኔ ኑ፥ እኔም አሳርፋችኋለሁ።", en: "Come to Me, all who are weary and burdened, and I will give you rest.", ref: "ማቴ 11:28 / Matt 11:28" },
+    { am: "እግዚአብሔርንም ለሚወዱት እንደ አሳቡም ለተጠሩት ነገር ሁሉ ለበጎ እንዲደረግ እናውቃለን።", en: "We know that in all things God works for the good of those who love Him, who have been called according to His purpose.", ref: "ሮሜ 8:28 / Rom 8:28" },
+    { am: "እኔ ከአንተ ጋር ነኝና አትፍራ፥ እኔ አምላክህ ነኝና አትደንግጥ፤ አበረታሃለሁ፥ እረዳሃለሁም።", en: "Do not fear, for I am with you; do not be dismayed, for I am your God. I will strengthen you and help you.", ref: "ኢሳ 41:10 / Isa 41:10" },
+    { am: "አስቀድማችሁ የእግዚአብሔርን መንግሥትና ጽድቁን ፈልጉ፥ ይህም ሁሉ ይጨመርላችኋል።", en: "Seek first His kingdom and His righteousness, and all these things will be given to you as well.", ref: "ማቴ 6:33 / Matt 6:33" },
+    { am: "እኔ መንገድና እውነት ሕይወትም ነኝ፤ በእኔ በቀር ወደ አብ የሚመጣ የለም።", en: "I am the way and the truth and the life. No one comes to the Father except through Me.", ref: "ዮሐ 14:6 / John 14:6" },
+    { am: "እኔ የዓለም ብርሃን ነኝ፤ የሚከተለኝ የሕይወት ብርሃን ይሆንለታል እንጂ በጨለማ አይመላለስም።", en: "I am the light of the world. Whoever follows Me will never walk in darkness, but will have the light of life.", ref: "ዮሐ 8:12 / John 8:12" },
+    { am: "ቃልህ ለእግሬ መብራት ለመንገዴም ብርሃን ነው።", en: "Your word is a lamp to my feet and a light to my path.", ref: "መዝ 119:105 / Ps 119:105" },
+    { am: "ይህንም ዓለም አትምሰሉ፥ ነገር ግን በልባችሁ መታደስ ተለወጡ።", en: "Do not conform to the pattern of this world, but be transformed by the renewing of your mind.", ref: "ሮሜ 12:2 / Rom 12:2" },
+    { am: "ጸጋዬ ይበቃሃል፥ ኃይሌ በድካም ይፈጸማልና።", en: "My grace is sufficient for you, for My power is made perfect in weakness.", ref: "2ቆሮ 12:9 / 2 Cor 12:9" },
+    { am: "ከክርስቶስ ጋር ተሰቅያለሁ፤ የምኖረውም ከእንግዲህ ወዲህ እኔ አይደለሁም፥ ክርስቶስ ግን በእኔ ይኖራል።", en: "I have been crucified with Christ; it is no longer I who live, but Christ lives in me.", ref: "ገላ 2:20 / Gal 2:20" },
+    { am: "እምነት ተስፋ ስለምናደርገው ነገር የሚያስረግጥ የማናየውንም ነገር የሚያስረዳ ነው።", en: "Faith is confidence in what we hope for and assurance about what we do not see.", ref: "ዕብ 11:1 / Heb 11:1" },
+    { am: "ከእናንተ ግን ጥበብ የሚጎድለው ቢኖር፥ ሳይነቅፍ በልግስና ለሁሉ የሚሰጠውን እግዚአብሔርን ይለምን፥ ይሰጠውማል።", en: "If any of you lacks wisdom, let him ask God, who gives generously to all without finding fault, and it will be given to him.", ref: "ያዕ 1:5 / James 1:5" },
+    { am: "ፍቅር የሌለው እግዚአብሔርን አላወቀም፤ እግዚአብሔር ፍቅር ነውና።", en: "Whoever does not love does not know God, because God is love.", ref: "1ዮሐ 4:8 / 1 John 4:8" },
+    { am: "መልካሙን ሥራችሁን አይተው በሰማያት ያለውን አባታችሁን እንዲያመሰግኑ እንዲሁ ብርሃናችሁ በሰዎች ፊት ይብራ።", en: "Let your light shine before others, that they may see your good deeds and glorify your Father in heaven.", ref: "ማቴ 5:16 / Matt 5:16" },
+    { am: "እነሆም እኔ እስከ ዓለም ፍጻሜ ድረስ ሁልጊዜ ከእናንተ ጋር ነኝ።", en: "And surely I am with you always, to the very end of the age.", ref: "ማቴ 28:20 / Matt 28:20" },
+    { am: "እግዚአብሔር መጠጊያችንና ኃይላችን፥ በመከራም ጊዜ ፈጥኖ የሚገኝ ረዳታችን ነው።", en: "God is our refuge and strength, an ever-present help in trouble.", ref: "መዝ 46:1 / Ps 46:1" },
+    { am: "እግዚአብሔርን መፍራት የእውቀት መጀመሪያ ነው።", en: "The fear of the Lord is the beginning of knowledge.", ref: "ምሳ 1:7 / Prov 1:7" },
+    { am: "በታናሽነትህ ወራት ፈጣሪህን አስብ።", en: "Remember your Creator in the days of your youth.", ref: "መክ 12:1 / Eccl 12:1" },
+    { am: "ማንም ታናሽነትህን አይናቀው፤ ነገር ግን በቃልና በአካሄድ በፍቅርም በእምነትም በንጽሕናም ለምእመናን ምሳሌ ሁን።", en: "Don't let anyone look down on you because you are young, but set an example in speech, conduct, love, faith and purity.", ref: "1ጢሞ 4:12 / 1 Tim 4:12" },
+    { am: "ገና ኃጢአተኞች ሳለን ክርስቶስ ስለ እኛ ሞቶአልና፥ እግዚአብሔር ለእኛ ያለውን የራሱን ፍቅር ያሳያል።", en: "While we were still sinners, Christ died for us — this is how God demonstrates His love for us.", ref: "ሮሜ 5:8 / Rom 5:8" },
+    { am: "በጸጋ ከእምነት የዳናችሁ ናችሁና፤ ይህም ከእናንተ አይደለም፥ የእግዚአብሔር ስጦታ ነው።", en: "For it is by grace you have been saved, through faith — and this is not from yourselves, it is the gift of God.", ref: "ኤፌ 2:8 / Eph 2:8" },
+    { am: "በእግዚአብሔር ደስ ይበልህ፥ የልብህንም መሻት ይሰጥሃል።", en: "Take delight in the Lord, and He will give you the desires of your heart.", ref: "መዝ 37:4 / Ps 37:4" },
+    { am: "በልዑል መጠጊያ የሚኖር በሁሉን ቻይ አምላክ ጥላ ይተኛል።", en: "Whoever dwells in the shelter of the Most High will rest in the shadow of the Almighty.", ref: "መዝ 91:1 / Ps 91:1" },
+    { am: "በአንዳች አትጨነቁ፥ ነገር ግን በሁሉ በጸሎትና በምልጃ ከምስጋና ጋር ልመናችሁ በእግዚአብሔር ዘንድ ይታወቅ።", en: "Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.", ref: "ፊል 4:6 / Phil 4:6" }
   ];
+  // Verse of the day: advances by one every LOCAL calendar day and cycles
+  // through the whole list (list length = days before a repeat). Uses the
+  // local date, not UTC, so it changes at local midnight.
   function todaysVerse(){
-    var day = Math.floor(Date.now() / 86400000);
+    var n = new Date();
+    var day = Math.floor(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / 86400000);
     return VERSES[day % VERSES.length];
   }
 
-  var READING_PLAN = [
-    { am: "ማቴዎስ ምዕ. 5", en: "Matthew ch. 5" },
-    { am: "መዝሙር 23", en: "Psalm 23" },
-    { am: "ዮሐንስ ምዕ. 1", en: "John ch. 1" },
-    { am: "ሮሜ ምዕ. 12", en: "Romans ch. 12" },
-    { am: "መዝሙር 121", en: "Psalm 121" },
-    { am: "1ቆሮንቶስ ምዕ. 13", en: "1 Corinthians ch. 13" },
-    { am: "ፊልጵስዩስ ምዕ. 4", en: "Philippians ch. 4" }
+  // ---- Reading plan: the New Testament, one chapter a day, 37 weeks ----
+  // 260 chapters, with 2 & 3 John (1 chapter each) combined into one day =
+  // 259 days = 37 weeks x 7. Week 1 starts on Meskerem 1 (Ethiopian new
+  // year) and the plan restarts every new year, same as the Journey.
+  var NT_BOOKS = [
+    { am: "ማቴዎስ", en: "Matthew", ch: 28 }, { am: "ማርቆስ", en: "Mark", ch: 16 },
+    { am: "ሉቃስ", en: "Luke", ch: 24 }, { am: "ዮሐንስ", en: "John", ch: 21 },
+    { am: "የሐዋርያት ሥራ", en: "Acts", ch: 28 }, { am: "ሮሜ", en: "Romans", ch: 16 },
+    { am: "1ኛ ቆሮንቶስ", en: "1 Corinthians", ch: 16 }, { am: "2ኛ ቆሮንቶስ", en: "2 Corinthians", ch: 13 },
+    { am: "ገላትያ", en: "Galatians", ch: 6 }, { am: "ኤፌሶን", en: "Ephesians", ch: 6 },
+    { am: "ፊልጵስዩስ", en: "Philippians", ch: 4 }, { am: "ቆላስይስ", en: "Colossians", ch: 4 },
+    { am: "1ኛ ተሰሎንቄ", en: "1 Thessalonians", ch: 5 }, { am: "2ኛ ተሰሎንቄ", en: "2 Thessalonians", ch: 3 },
+    { am: "1ኛ ጢሞቴዎስ", en: "1 Timothy", ch: 6 }, { am: "2ኛ ጢሞቴዎስ", en: "2 Timothy", ch: 4 },
+    { am: "ቲቶ", en: "Titus", ch: 3 }, { am: "ፊልሞና", en: "Philemon", ch: 1 },
+    { am: "ዕብራውያን", en: "Hebrews", ch: 13 }, { am: "ያዕቆብ", en: "James", ch: 5 },
+    { am: "1ኛ ጴጥሮስ", en: "1 Peter", ch: 5 }, { am: "2ኛ ጴጥሮስ", en: "2 Peter", ch: 3 },
+    { am: "1ኛ ዮሐንስ", en: "1 John", ch: 5 }, { am: "2ኛ እና 3ኛ ዮሐንስ", en: "2 & 3 John", ch: 1 },
+    { am: "ይሁዳ", en: "Jude", ch: 1 }, { am: "ራእይ", en: "Revelation", ch: 22 }
   ];
+  var READING_PLAN = [];
+  NT_BOOKS.forEach(function(b){
+    for (var c = 1; c <= b.ch; c++){
+      READING_PLAN.push(b.ch === 1
+        ? { am: b.am, en: b.en }
+        : { am: b.am + " ምዕ. " + c, en: b.en + " ch. " + c });
+    }
+  });
+  var READING_DAYS_PER_WEEK = 7;
+  var READING_WEEKS = Math.ceil(READING_PLAN.length / READING_DAYS_PER_WEEK); // 37
+  // reading_checks.day_index stores (ethiopianYear - 2018) * 300 + planIndex,
+  // so each Ethiopian year gets its own checkmarks and the plan starts clean
+  // every Meskerem 1 -- no database change needed (the column is smallint).
+  var READING_KEY_BASE_YEAR = 2018;
+  function readingKey(planIdx){
+    return (todayEthiopian().year - READING_KEY_BASE_YEAR) * 300 + planIdx;
+  }
+  // 0-based week we're in right now, counted from Meskerem 1.
+  function currentReadingWeek(){
+    var start = ethNewYearGregDate(todayEthiopian().year).getTime();
+    var n = new Date();
+    var today = Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+    var w = Math.floor(Math.floor((today - start) / 86400000) / 7);
+    return Math.min(Math.max(w, 0), READING_WEEKS - 1);
+  }
 
   var WEEKLY_CHALLENGES = [
     { m: "ዛሬ አንድ ጓደኛህን ደውለህ 'እንዴት ነህ' በል።", f: "ዛሬ አንድ ጓደኛሽን ደውለሽ 'እንዴት ነሽ' በይ።", en: "Call one friend today and simply ask how they're doing." },
@@ -309,6 +375,7 @@
     journeySteps: [],
     myToday: { reading_done:false, prayer_done:false, challenge_done:false, app_opens:0 },
     journeyViewChapter: null,
+    readingViewWeek: null,
     directory: [],
     careCalls: []
   };
@@ -688,15 +755,28 @@
         + '</div>';
     }).join("") : '<div class="fw-empty">' + t("ምንም የጸሎት ጥያቄ የለም።", "No prayer requests yet.") + '</div>';
 
-    var checkedCount = state.readChecked.length;
-    var pct = Math.round((checkedCount / READING_PLAN.length) * 100);
-    var days = READING_PLAN.map(function(r, i){
-      var done = state.readChecked.indexOf(i) !== -1;
-      return '<div class="fw-day-row" data-day="' + i + '">'
-        + '<span class="fw-day-idx' + (done?' done':'') + '">' + (done ? "✓" : (i+1)) + '</span>'
+    var curWeek = currentReadingWeek();
+    if (state.readingViewWeek === null) state.readingViewWeek = curWeek;
+    var wk = state.readingViewWeek;
+    var firstIdx = wk * READING_DAYS_PER_WEEK;
+    var lastIdx = Math.min(firstIdx + READING_DAYS_PER_WEEK, READING_PLAN.length);
+    var checkedCount = 0;
+    var days = "";
+    for (var i = firstIdx; i < lastIdx; i++){
+      var done = state.readChecked.indexOf(readingKey(i)) !== -1;
+      if (done) checkedCount++;
+      var r = READING_PLAN[i];
+      days += '<div class="fw-day-row" data-day="' + i + '">'
+        + '<span class="fw-day-idx' + (done?' done':'') + '">' + (done ? "✓" : (i - firstIdx + 1)) + '</span>'
         + '<span class="fw-day-label' + (done?' done':'') + '">' + escapeHtml(LANG === "am" ? r.am : r.en) + '</span>'
         + '</div>';
-    }).join("");
+    }
+    var weekTotal = lastIdx - firstIdx;
+    var pct = Math.round((checkedCount / weekTotal) * 100);
+    var overallDone = 0;
+    for (var k = 0; k < READING_PLAN.length; k++){
+      if (state.readChecked.indexOf(readingKey(k)) !== -1) overallDone++;
+    }
 
     return ''
       + '<h2 class="fw-section-title">' + t("መንፈሳዊ ሕይወት", "Spiritual Life") + '</h2>'
@@ -711,8 +791,16 @@
       + '<div class="fw-divider"></div>'
 
       + '<h3 class="fw-serif" style="color:var(--green);font-size:15px;margin:0 0 4px;">' + t("ሳምንታዊ የንባብ እቅድ", "Weekly reading plan") + '</h3>'
+      + '<div class="fw-chapter-nav" style="margin:6px 0;">'
+      + '<button class="fw-btn ghost small" id="rw-prev" ' + (wk <= 0 ? "disabled" : "") + '>‹</button>'
+      + '<div class="fw-chapter-title">'
+      + '<p class="fw-serif" style="margin:0;font-size:15px;color:var(--green);">' + t("ሳምንት", "Week") + ' ' + (wk+1) + ' / ' + READING_WEEKS
+      + (wk === curWeek ? ' <span class="fw-tag">' + t("ይህ ሳምንት", "this week") + '</span>' : '') + '</p>'
+      + '</div>'
+      + '<button class="fw-btn ghost small" id="rw-next" ' + (wk >= READING_WEEKS-1 ? "disabled" : "") + '>›</button>'
+      + '</div>'
       + '<div class="fw-progress-wrap"><div class="fw-progress-bar" style="width:' + pct + '%"></div></div>'
-      + '<p class="fw-meta" style="margin:0 0 8px;">' + checkedCount + '/' + READING_PLAN.length + ' ' + t("ተነብቧል", "read") + '</p>'
+      + '<p class="fw-meta" style="margin:0 0 8px;">' + checkedCount + '/' + weekTotal + ' ' + t("ተነብቧል", "read") + ' · ' + t("በጠቅላላ ", "overall ") + overallDone + '/' + READING_PLAN.length + '</p>'
       + days;
   }
 
@@ -771,8 +859,9 @@
 
   async function toggleReadDay(i){
     if (!guardOnline()) return;
-    var checking = state.readChecked.indexOf(i) === -1;
-    await DB.setReadingCheck(state.userId, i, checking);
+    var key = readingKey(i);
+    var checking = state.readChecked.indexOf(key) === -1;
+    await DB.setReadingCheck(state.userId, key, checking);
     state.readChecked = await DB.getMyReadingChecks(state.userId);
     cacheSet("readChecked", state.readChecked);
     render();
@@ -1211,6 +1300,11 @@
     document.querySelectorAll("[data-day]").forEach(function(row){
       row.onclick = function(){ toggleReadDay(parseInt(row.getAttribute("data-day"),10)); };
     });
+
+    var rwPrev = document.getElementById("rw-prev");
+    if (rwPrev) rwPrev.onclick = function(){ state.readingViewWeek = Math.max(0, state.readingViewWeek - 1); render(); };
+    var rwNext = document.getElementById("rw-next");
+    if (rwNext) rwNext.onclick = function(){ state.readingViewWeek = Math.min(READING_WEEKS - 1, state.readingViewWeek + 1); render(); };
 
     // group / journey
     var chb = document.getElementById("ch-done-btn");

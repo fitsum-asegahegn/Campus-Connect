@@ -160,7 +160,7 @@
   async function getPrayerWall() {
     var { data, error } = await sb()
       .from("prayer_requests")
-      .select("id, text, is_anon, pray_count, created_at, profiles(name)")
+      .select("id, text, is_anon, pray_count, created_at")
       .order("created_at", { ascending: false })
       .limit(100);
     logIfError("getPrayerWall", error);
@@ -169,7 +169,7 @@
         id: r.id,
         text: r.text,
         anon: r.is_anon,
-        author: r.is_anon ? null : ((r.profiles && r.profiles.name) || null),
+        author: null,
         prayCount: r.pray_count
       };
     });

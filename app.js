@@ -266,23 +266,26 @@
       var cy = lerp(from.y, to.y, f);
       svg += '<circle cx="' + cx + '" cy="' + cy + '" r="16" fill="none" stroke="#B8860B" stroke-width="2.5"/>';
 
-      // Position people by RANK (more personal steps = always further along),
-      // not by (steps % STEPS_PER_WAYPOINT) — that wraps around every time
-      // someone crosses a multiple of STEPS_PER_WAYPOINT, which could put
-      // someone with far more total steps visually behind someone with far
-      // fewer. Ranking guarantees strict, permanent ordering by steps.
-      var stepsList = journey.people.map(function(p){ return p.steps; });
-      var maxSteps = stepsList.length ? Math.max.apply(null, stepsList) : 0;
-      var minSteps = stepsList.length ? Math.min.apply(null, stepsList) : 0;
-      var range = Math.max(1, maxSteps - minSteps);
+      // Position people along the WHOLE chapter road, in proportion to their
+      // own steps. The leader (most steps) sits at the caravan ring and
+      // everyone else trails behind, so 35 steps, 5 steps and 1 step are
+      // always visibly different distances apart -- even when the caravan
+      // is parked on the chapter's last waypoint.
+      var ringU = (localCurrent < 3) ? (localCurrent + journey.legFraction) : 3; // 0..3 along the road
+      function pointAt(u){
+        var seg = Math.min(Math.floor(u), 2);
+        var ff = Math.min(Math.max(u - seg, 0), 1);
+        return { x: lerp(pts[seg].x, pts[seg+1].x, ff), y: lerp(pts[seg].y, pts[seg+1].y, ff) };
+      }
+      var maxSteps = journey.people.reduce(function(m, p){ return Math.max(m, p.steps); }, 0) || 1;
 
       journey.people.forEach(function(person, idx){
-        var norm = (person.steps - minSteps) / range; // 0..1, strictly monotonic with steps
-        var pf = (localCurrent < 3) ? (0.1 + norm * 0.8) : 0.92; // keep clear of both waypoint circles
+        var u = ringU * (person.steps / maxSteps);
+        var base = pointAt(u);
         var jx = ((idx * 37) % 21) - 10;
         var jy = ((idx * 53) % 17) - 8;
-        var px = lerp(from.x, to.x, pf) + jx;
-        var py = lerp(from.y, to.y, pf) + jy;
+        var px = base.x + jx;
+        var py = base.y + jy;
         svg += '<circle cx="' + px + '" cy="' + py + '" r="11" fill="' + person.avatarColor + '" stroke="#FFFDF8" stroke-width="1.5"/>';
         svg += '<text x="' + px + '" y="' + (py + 4) + '" text-anchor="middle" font-size="11">' + person.avatarIcon + '</text>';
       });

@@ -236,19 +236,23 @@
   .fw-fab-row{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--bg) 30%);padding:10px 0 4px;margin-top:6px;}
 
   /* modal */
+  /* Anchored to the SCREEN (fixed), not the page, so the sheet always
+     appears in view no matter how far the feed/list has been scrolled. */
   .fw-overlay{
-    position:absolute;inset:0;background:rgba(20,16,8,.55);display:flex;align-items:flex-end;
-    z-index:20;
+    position:fixed;inset:0;background:rgba(20,16,8,.55);display:flex;align-items:flex-end;
+    justify-content:center;z-index:20;
   }
   .fw-sheet{
-    background:var(--surface);width:100%;padding:20px 20px 24px;border-top:3px solid var(--gold);
-    max-height:80%;overflow-y:auto;
+    background:var(--surface);width:100%;max-width:520px;
+    padding:20px 20px calc(24px + env(safe-area-inset-bottom, 0px));border-top:3px solid var(--gold);
+    max-height:85vh;max-height:85dvh;overflow-y:auto;overscroll-behavior:contain;
   }
+  body:has(.fw-overlay){overflow:hidden;}
   .fw-sheet h3{margin:0 0 4px;color:var(--green);font-size:16px;}
   .fw-sheet p.hint{font-size:12px;color:var(--ink-soft);margin:0 0 14px;}
 
   .fw-toast{
-    position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);
     background:var(--ink);color:#FBF4E2;padding:9px 16px;font-size:12.5px;
     border-radius:20px;opacity:0;pointer-events:none;transition:opacity .25s ease;z-index:30;
   }
